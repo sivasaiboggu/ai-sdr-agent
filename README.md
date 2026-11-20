@@ -203,9 +203,10 @@ pytest tests/ -q   # 29 tests: writer quality gate, lead scoring, sender
    is read into config but `memory.py` always uses the local SQLite file,
    so a Postgres URL would be silently ignored. Deploy single-instance
    with SQLite until that is implemented.
-6. Real Gmail sending is not done by this backend: `sender.py` marks
-   approved drafts `ready-to-send` and the parent agent sends them via
-   Gmail. Do not set `GMAIL_SEND_ENABLED=true` expecting the API to send.
+6. Real Gmail sending is done by this backend since v0.6
+   (`backend/app/gmail.py`, SMTP): it needs `GMAIL_SEND_ENABLED=true`
+   AND a Gmail app password (`GMAIL_APP_PASSWORD` in `.env`). Without
+   the app password, sends are logged as failed and nothing goes out.
 
 ### Docker (local demo only)
 
@@ -218,6 +219,25 @@ Compose builds both images (see `backend/Dockerfile`,
 starting the frontend. Note: these Dockerfiles were added without a
 Docker daemon available to build-test them — run the command once on a
 machine with Docker before relying on them.
+
+## v0.6 — what changed (20 Nov 2026)
+
+- **The backend sends real Gmail itself** — `backend/app/gmail.py` sends
+  over Gmail SMTP with the PDF resume attached. Real sends need BOTH
+  `GMAIL_SEND_ENABLED=true` and a Gmail app password (`GMAIL_APP_PASSWORD`
+  in `.env`; Google Account > Security > 2-Step Verification > App
+  passwords — the normal Google password does not work with SMTP).
+  Dry-run is still the default, and POST /approve with sending disabled
+  stays a dry-run, so nothing can be sent by accident. A failed send is
+  logged as `failed: <reason>` and the batch continues; a draft that
+  fails the quality gate is still blocked and never reaches SMTP.
+  The 5-minute gap and quality gate are unchanged.
+- **Dashboard honesty** — a failed or blocked approval no longer shows
+  the draft as Approved, and the toast says plainly when an approval was
+  dry-run only.
+- **Tests** — 35 tests (was 29): new `tests/test_gmail.py` covers real
+  sending (mocked SMTP), the missing-password case, failure logging, the
+  blocked-draft guard, and the flag-off-never-sends safety property.
 
 ## v0.5 — what changed (20 Nov 2026)
 

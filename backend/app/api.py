@@ -26,7 +26,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(

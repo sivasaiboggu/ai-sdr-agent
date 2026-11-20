@@ -18,8 +18,18 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
     try {
       const res = await approveCompany(d.company ?? '')
       const status = res.sent.find((s) => s.to === d.to)?.status ?? 'queued'
+      // Only mark a draft approved when the backend actually queued/sent
+      // it. A failed or blocked send must never wear the Approved badge.
+      if (status.startsWith('failed:') || status.startsWith('blocked:')) {
+        onToast(`Approval reached the backend but the mail did NOT go out — ${status}. Nothing was marked approved; fix the cause and try again.`, 'error')
+        return
+      }
       setApproved((s) => new Set(s).add(d.to))
-      onToast(`Draft to ${d.name} approved — ${status}. It sends with the 5-minute gap.`)
+      if (status === 'draft (dry-run)') {
+        onToast(`Draft to ${d.name} approved — dry-run only, nothing was really sent. Set GMAIL_SEND_ENABLED=true and a Gmail app password in the backend .env to send for real.`)
+      } else {
+        onToast(`Draft to ${d.name} approved — ${status}. It sends with the 5-minute gap.`)
+      }
     } catch (e) {
       // Backend not running (or the approval failed): say so plainly and
       // do NOT mark the draft approved — the badge must never claim a mail
@@ -86,7 +96,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
         })}
       </div>
       <Card className="mt-4 border-dashed p-5 text-sm text-zinc-500 dark:text-zinc-400">
-        Sending is rate-limited to one mail every 5 minutes, and every send is logged with its Gmail message ID so you can trace it in Sent.
+        Sending is rate-limited to one mail every 5 minutes, and every send is logged in the backend — with its real Gmail message ID when it actually went out (dry-run entries carry a dry-run ID instead).
       </Card>
     </div>
   )

@@ -38,6 +38,9 @@ class Settings:
     apollo_api_key: str = _env("APOLLO_API_KEY")
     gmail_send_enabled: bool = _env("GMAIL_SEND_ENABLED", "false").lower() == "true"
     gmail_from: str = _env("GMAIL_FROM", "sivasaiboggu@gmail.com")
+    # Gmail app password (Google Account > Security > 2-Step Verification >
+    # App passwords). Needed only for real sends; never committed.
+    gmail_app_password: str = _env("GMAIL_APP_PASSWORD")
     database_url: str = _env("DATABASE_URL", "sqlite:///./sdr.db")
     send_gap_seconds: int = _env_int("SEND_GAP_SECONDS", 300)
     resume_path: str = _env("RESUME_PATH", "workspace/your_files/sivasai-boggu-ats-resume/Sivasai_Boggu_Resume.pdf")
