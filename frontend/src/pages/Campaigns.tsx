@@ -2,8 +2,47 @@ import { motion } from 'framer-motion'
 import { ArrowUpRight, Building2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
-import { SEED_CAMPAIGNS, SEED_PEOPLE } from '../lib/data'
+import { SEED_CAMPAIGNS, SEED_DRAFTS, SEED_PEOPLE } from '../lib/data'
 import { timeAgo } from '../lib/utils'
+import { cn } from '../lib/utils'
+
+/** Pipeline funnel for one campaign — every number comes from the seeded
+ * campaign record and the drafts actually written for that company, so
+ * the funnel can only ever show what really happened: leads found,
+ * drafts written, mails sent, replies received. */
+function PipelineFunnel({ company, leads, sent, replies }: { company: string; leads: number; sent: number; replies: number }) {
+  const drafts = SEED_DRAFTS.filter((d) => d.company === company).length
+  const stages = [
+    { label: 'Leads', count: leads, tone: 'bg-brand-500' },
+    { label: 'Drafts', count: drafts, tone: 'bg-violet-500' },
+    { label: 'Sent', count: sent, tone: 'bg-emerald-500' },
+    { label: 'Replies', count: replies, tone: 'bg-amber-500' },
+  ]
+  const max = Math.max(leads, 1)
+  return (
+    <div className="mt-4">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        {stages.map((s) => (
+          <motion.div key={s.label} initial={{ width: 0 }} animate={{ width: `${(s.count / max) * 100}%` }} transition={{ duration: 0.6 }}
+            className={cn('h-full', s.tone)} title={`${s.label}: ${s.count}`} />
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+        {stages.map((s) => (
+          <div key={s.label}>
+            <p className="text-sm font-bold text-zinc-900 dark:text-white">{s.count}</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-center text-xs text-zinc-400">
+        {sent === 0 ? 'Nothing sent yet — approve a draft to start the pipeline.'
+          : replies === 0 ? `${sent} of ${leads} leads mailed — waiting on replies.`
+            : `${replies} ${replies === 1 ? 'reply' : 'replies'} from ${sent} sent.`}
+      </p>
+    </div>
+  )
+}
 
 export default function Campaigns({ query }: { query: string }) {
   const list = SEED_CAMPAIGNS.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.summary.toLowerCase().includes(query.toLowerCase()))
@@ -40,6 +79,7 @@ export default function Campaigns({ query }: { query: string }) {
                 <Badge tone={c.status}>{c.status}</Badge>
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{c.summary}</p>
+              <PipelineFunnel company={c.name} leads={c.leads} sent={c.sent} replies={c.replies} />
               <div className="mt-4 flex items-center gap-1">
                 {people.slice(0, 4).map((p) => <Avatar key={p.email || p.name} name={p.name} size="sm" />)}
                 {people.length > 4 && <span className="ml-1 text-xs font-semibold text-zinc-500">+{people.length - 4}</span>}

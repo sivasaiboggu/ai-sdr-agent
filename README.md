@@ -220,6 +220,28 @@ starting the frontend. Note: these Dockerfiles were added without a
 Docker daemon available to build-test them — run the command once on a
 machine with Docker before relying on them.
 
+## v0.7 — what changed (20 Nov 2026)
+
+- **Streaming chat** — new `POST /chat/stream` (SSE): the Agent Chat page
+  now shows live pipeline steps driven by real `step` events, then the
+  reply types out word by word with a caret, instead of waiting for the
+  whole run. If the stream fails before the first token, the page falls
+  back to plain `POST /chat`. Sending behaviour is unchanged: drafts
+  only, dry-run default, 5-minute gap, quality gate, app password.
+- **⌘K command palette** — jump to any page, start research on a known
+  company (queued for Agent chat), or toggle the theme, all keyboard-first
+  (↑↓ to move, Enter to run, Esc to close). `/` focuses the top search box.
+- **Lead detail drawer** — click any lead to open a slide-over with their
+  contact details, copy-email, LinkedIn link, lead score with a plain-word
+  explanation of why they rank there, the draft mail written for them,
+  and the other leads at the same company. Esc closes it.
+- **Campaign pipeline funnel** — each campaign card now shows Leads →
+  Drafts → Sent → Replies as a funnel, counted from the campaign record
+  and the drafts actually written — no invented numbers.
+- **Tests** — 39 tests (was 35): new `tests/test_chat_stream.py` covers
+  the SSE step/token/done sequence, the token stream reassembling into
+  exactly the done reply, the no-company help reply, and error events.
+
 ## v0.6 — what changed (20 Nov 2026)
 
 - **The backend sends real Gmail itself** — `backend/app/gmail.py` sends

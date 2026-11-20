@@ -207,6 +207,52 @@ export async function sendChat(message: string): Promise<ChatResponse> {
   return (await r.json()) as ChatResponse
 }
 
+export type StreamEvent =
+  | { kind: 'step'; key: string; state: string }
+  | { kind: 'token'; text: string }
+  | { kind: 'done'; reply: string; drafts: Draft[]; company?: ChatResponse['company']; people?: Person[] }
+  | { kind: 'error'; detail: string }
+
+/** Streaming twin of sendChat: consumes POST /chat/stream (SSE) and calls
+ * `onEvent` for every frame. Throws on HTTP failure so the caller can
+ * fall back to the plain /chat call. */
+export async function streamChat(message: string, onEvent: (e: StreamEvent) => void): Promise<void> {
+  const r = await fetch(apiUrl('/chat/stream'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify({ message }),
+  })
+  if (!r.ok || !r.body) throw new Error(`Agent API returned ${r.status}`)
+  const reader = r.body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let event = ''
+  const emit = (data: string) => {
+    try {
+      const payload = JSON.parse(data)
+      if (event === 'step') onEvent({ kind: 'step', key: payload.key, state: payload.state })
+      else if (event === 'token') onEvent({ kind: 'token', text: payload.text })
+      else if (event === 'done') onEvent({ kind: 'done', reply: payload.reply, drafts: payload.drafts ?? [], company: payload.company, people: payload.people })
+      else if (event === 'error') onEvent({ kind: 'error', detail: payload.detail })
+    } catch { /* ignore a malformed frame — the done event still lands */ }
+  }
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    let idx: number
+    while ((idx = buf.indexOf('\n\n')) !== -1) {
+      const frame = buf.slice(0, idx)
+      buf = buf.slice(idx + 2)
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) emit(line.slice(5).trim())
+      }
+      event = ''
+    }
+  }
+}
+
 /** Approve a company's drafts. Throws on network/HTTP failure so the
  * caller can tell the user the approval did NOT reach the backend. */
 export async function approveCompany(company: string): Promise<{ sent: { to: string; status: string }[]; company: string }> {

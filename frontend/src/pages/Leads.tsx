@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BadgeCheck, Mail, Search } from 'lucide-react'
 import { Avatar, Badge, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
-import { SEED_PEOPLE } from '../lib/data'
+import LeadDrawer from '../components/LeadDrawer'
+import { SEED_PEOPLE, type Person } from '../lib/data'
 import { cn } from '../lib/utils'
+import type { ToastTone } from '../App'
 
-export default function Leads({ query }: { query: string }) {
+export default function Leads({ query, onToast }: { query: string; onToast: (msg: string, tone?: ToastTone) => void }) {
   const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all')
   const [company, setCompany] = useState('All companies')
+  const [selected, setSelected] = useState<Person | null>(null)
   const companies = useMemo(() => ['All companies', ...Array.from(new Set(SEED_PEOPLE.map((p) => p.company)))], [])
   const list = SEED_PEOPLE.filter((p) => {
     if (filter === 'verified' && !p.verified) return false
@@ -49,7 +52,8 @@ export default function Leads({ query }: { query: string }) {
             <tbody>
               {list.map((p, i) => (
                 <motion.tr key={p.email || p.name} variants={fadeUp} initial="hidden" animate="show" custom={i}
-                  className="border-b border-zinc-50 transition hover:bg-zinc-50/80 last:border-0 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40">
+                  onClick={() => setSelected(p)} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setSelected(p) }}
+                  className="cursor-pointer border-b border-zinc-50 transition hover:bg-zinc-50/80 last:border-0 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <Avatar name={p.name} />
@@ -88,6 +92,7 @@ export default function Leads({ query }: { query: string }) {
           )}
         </div>
       </Card>
+      <LeadDrawer person={selected} onClose={() => setSelected(null)} onSelect={setSelected} onToast={onToast} />
     </div>
   )
 }

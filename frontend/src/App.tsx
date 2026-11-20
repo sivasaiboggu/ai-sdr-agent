@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { Sidebar, Topbar } from './components/layout'
+import CommandPalette from './components/CommandPalette'
 import Dashboard from './pages/Dashboard'
 import Campaigns from './pages/Campaigns'
 import Leads from './pages/Leads'
@@ -32,6 +33,7 @@ const TOAST_ICON = {
 export default function App() {
   const { dark, toggle } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; tone: ToastTone } | null>(null)
   const location = useLocation()
@@ -45,23 +47,36 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }, [location.pathname])
 
+  // ⌘K / Ctrl+K opens the command palette anywhere in the app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleTheme={toggle} dark={dark} />
       <div className="lg:pl-64">
-        <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} query={query} onQuery={setQuery} />
+        <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} onOpenPalette={() => setPaletteOpen(true)} query={query} onQuery={setQuery} />
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/campaigns" element={<Campaigns query={query} />} />
-            <Route path="/leads" element={<Leads query={query} />} />
+            <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
             <Route path="/drafts" element={<Drafts onToast={showToast} />} />
             <Route path="/replies" element={<Replies />} />
             <Route path="/chat" element={<Chat onToast={showToast} />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
           <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-5 text-xs text-zinc-400 dark:border-zinc-800">
-            <span>SDR Agent v0.5 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+            <span>SDR Agent v0.7 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
         </main>

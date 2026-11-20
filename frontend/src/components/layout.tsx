@@ -86,14 +86,16 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   )
 }
 
-export function Topbar({ dark, onToggleTheme, onOpenSidebar, query, onQuery }: {
-  dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; query: string; onQuery: (v: string) => void
+export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, query, onQuery }: {
+  dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; onOpenPalette: () => void; query: string; onQuery: (v: string) => void
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
-  // ⌘K / Ctrl+K focuses the search box, as the kbd hint promises.
+  // "/" focuses the search box; ⌘K now opens the command palette (App owns it).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      const target = e.target as HTMLElement | null
+      const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+      if (e.key === '/' && !typing) {
         e.preventDefault()
         searchRef.current?.focus()
       }
@@ -110,9 +112,10 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, query, onQuery }: {
         </button>
         <div className="relative hidden w-full max-w-md sm:block">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <input ref={searchRef} value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search companies, leads, mails…"
+          <input ref={searchRef} value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search companies, leads, mails…  ( / to focus )"
             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:bg-zinc-900" />
-          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 md:block">⌘K</kbd>
+          <button onClick={onOpenPalette} aria-label="Open command palette"
+            className="pointer-events-auto absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700 dark:bg-zinc-800 md:block">⌘K</button>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 md:inline-flex">

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Loader2, Send, Sparkles, User, WifiOff } from 'lucide-react'
-import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, sendChat, type Draft } from '../lib/data'
+import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, sendChat, streamChat, type Draft } from '../lib/data'
 import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
@@ -21,6 +21,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
   ])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [streaming, setStreaming] = useState(false)
   const [apiDown, setApiDown] = useState(false)
   // Real backend status from /health — the header must not claim "Online"
   // when the API was never reached.
@@ -36,9 +37,20 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
       setApiStatus(ok ? 'online' : 'offline')
       setApiDown(!ok)
     })
+    // A research request queued from the ⌘K command palette.
+    try {
+      const pending = window.sessionStorage.getItem('sdr-pending-chat')
+      if (pending) {
+        window.sessionStorage.removeItem('sdr-pending-chat')
+        window.setTimeout(() => ask(pending), 300)
+      }
+    } catch { /* session storage unavailable — ignore */ }
     return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** Stream the reply live from /chat/stream; fall back to the plain /chat
+   * call if streaming fails before the first token arrives. */
   async function ask(text: string) {
     const q = text.trim()
     if (!q || busy) return
@@ -46,26 +58,64 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
     setInput('')
     setBusy(true)
     setStep(0)
-    const timer = window.setInterval(() => setStep((s) => Math.min(s + 1, AGENT_STEPS.length - 1)), 900)
+    let sawToken = false
+    let streamFailed = false
     try {
-      const data = await sendChat(q)
-      setApiDown(false)
-      setApiStatus('online')
-      setDrafts(data.drafts ?? [])
-      setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
-      onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)
-    } catch {
-      // Backend not running — show a visible error state, not a dead end.
-      setApiDown(true)
-      setApiStatus('offline')
-      const hint = API_BASE_URL
-        ? `Check the backend deployment and that its CORS_ORIGINS allows this site.`
-        : 'Start it with `uvicorn backend.app.api:app --port 8000`.'
-      onToast(`Backend API is not reachable at ${API_BASE_LABEL} — ${hint}`, 'error')
-      setMessages((m) => [...m, { role: 'agent', text: `The backend API is not reachable at ${API_BASE_LABEL} (${hint}). Try a suggestion below once it is up — or open Drafts to see the seeded demo mails.` }])
+      // Append an empty agent message; tokens fill it in as they arrive.
+      setMessages((m) => [...m, { role: 'agent', text: '' }])
+      setStreaming(true)
+      await streamChat(q, (e) => {
+        if (e.kind === 'step') {
+          const idx = AGENT_STEPS.findIndex((s) => s.key === e.key)
+          if (idx >= 0) setStep(e.state === 'done' ? Math.min(idx + 1, AGENT_STEPS.length - 1) : idx)
+        } else if (e.kind === 'token') {
+          sawToken = true
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last && last.role === 'agent') next[next.length - 1] = { ...last, text: last.text + e.text }
+            return next
+          })
+        } else if (e.kind === 'done') {
+          setDrafts(e.drafts ?? [])
+          setApiDown(false)
+          setApiStatus('online')
+          onToast(`${e.drafts?.length ?? 0} draft mails ready for review.`)
+        } else if (e.kind === 'error') {
+          streamFailed = true
+          throw new Error(e.detail)
+        }
+      })
+      setStreaming(false)
+      if (streamFailed) throw new Error('Agent run failed')
+    } catch (err) {
+      // Streaming failed before any token: retry once with plain /chat.
+      setStreaming(false)
+      if (!sawToken) {
+        setMessages((m) => m.filter((msg, i) => !(msg.role === 'agent' && msg.text === '' && i === m.length - 1)))
+        try {
+          const data = await sendChat(q)
+          setApiDown(false)
+          setApiStatus('online')
+          setDrafts(data.drafts ?? [])
+          setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
+          onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)
+        } catch {
+          setApiDown(true)
+          setApiStatus('offline')
+          const hint = API_BASE_URL
+            ? `Check the backend deployment and that its CORS_ORIGINS allows this site.`
+            : 'Start it with `uvicorn backend.app.api:app --port 8000`.'
+          onToast(`Backend API is not reachable at ${API_BASE_LABEL} — ${hint}`, 'error')
+          setMessages((m) => [...m, { role: 'agent', text: `The backend API is not reachable at ${API_BASE_LABEL} (${hint}). Try a suggestion below once it is up — or open Drafts to see the seeded demo mails.` }])
+        }
+      } else {
+        // Tokens already arrived — the reply is usable even if the tail failed.
+        onToast('Reply arrived but the stream cut off early — drafts below may be incomplete.', 'error')
+      }
     } finally {
-      window.clearInterval(timer)
       setBusy(false)
+      setStreaming(false)
       setStep(0)
       window.setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     }
@@ -85,7 +135,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="flex h-[620px] flex-col overflow-hidden xl:col-span-2">
+        <Card className="flex h-[560px] flex-col overflow-hidden sm:h-[620px] xl:col-span-2">
           <div className="flex items-center gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-5 w-5" /></span>
             <div>
@@ -114,6 +164,9 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
                   <div className={cn('max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
                     m.role === 'agent' ? 'rounded-tl-md bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100' : 'rounded-tr-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
                     {m.text}
+                    {streaming && m.role === 'agent' && i === messages.length - 1 && (
+                      <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-brand-500 align-text-bottom" aria-hidden />
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -121,7 +174,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
 
             {busy && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-zinc-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <p className="flex items-center gap-2 text-xs font-semibold text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Agent is working…</p>
+                <p className="flex items-center gap-2 text-xs font-semibold text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {streaming ? 'Writing your reply…' : 'Agent is working…'}</p>
                 <div className="mt-3 space-y-2">
                   {AGENT_STEPS.map((s, i) => (
                     <div key={s.key} className="flex items-center gap-2.5 text-sm">

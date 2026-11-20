@@ -1,6 +1,9 @@
 """FastAPI — chat-first API + WebSocket live progress.
 POST /chat {"message": "Research iion and draft mails"} -> runs the graph,
 returns profile / people / drafts, and waits for approval before sending.
+POST /chat/stream -> same run, but Server-Sent Events: `step` events as the
+pipeline advances, then the reply streamed word by word, then `done` with
+the drafts. The dashboard uses it for the live typing effect in Agent chat.
 POST /approve {"company": "...", "approve": true} -> sends the drafts.
 GET  /campaigns -> saved companies / people / mails from memory.
 WS   /ws -> live agent progress events.
@@ -17,8 +20,12 @@ come from `CORS_ORIGINS` (see `backend/app/config.py`); local dev
 Safety: nothing is sent without approval, and a draft that fails the
 quality gate is blocked by the sender instead of mailed.
 """
+import asyncio
+import json
+
 from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.app.config import settings
@@ -26,7 +33,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -99,6 +106,52 @@ def chat(req: ChatRequest):
         "people": result["mailable"],
         "drafts": result["drafts"],
     }
+
+
+def _sse(event: str, payload: dict) -> str:
+    """One Server-Sent Events frame."""
+    return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+
+
+@router.post("/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """Streaming twin of /chat. Emits `step` events (research -> people ->
+    writer -> approval) around the real run, then streams the reply word by
+    word as `token` events, then a `done` event carrying the drafts. The
+    run itself is synchronous, so it executes in a worker thread while the
+    response streams. Nothing is sent — drafts only, same as /chat."""
+    company = _parse_company(req.message)
+
+    async def generate():
+        if not company:
+            yield _sse("done", {"reply": "Tell me a company to research, e.g. 'Research iion and draft mails'.", "drafts": []})
+            return
+        yield _sse("step", {"key": "research", "state": "start"})
+        try:
+            # Draft only — do NOT send until /approve.
+            result = await asyncio.to_thread(run_campaign, company, False)
+        except ValueError as e:
+            yield _sse("error", {"detail": str(e)})
+            return
+        except Exception as e:
+            yield _sse("error", {"detail": f"Agent run failed: {e}"})
+            return
+        for key in ("people", "writer", "approval"):
+            yield _sse("step", {"key": key, "state": "done"})
+        reply = (
+            f"Researched {result['profile']['name']}: {result['profile']['summary']} "
+            f"Found {len(result['mailable'])} mailable people and drafted {len(result['drafts'])} "
+            "mails. Approve to send with a 5-minute gap."
+        )
+        # Stream the reply in small word chunks so the chat UI types it out.
+        words = reply.split(" ")
+        for i in range(0, len(words), 3):
+            yield _sse("token", {"text": " ".join(words[i:i + 3]) + (" " if i + 3 < len(words) else "")})
+            await asyncio.sleep(0.02)
+        yield _sse("done", {"reply": reply, "company": result["profile"], "people": result["mailable"], "drafts": result["drafts"]})
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/approve")
