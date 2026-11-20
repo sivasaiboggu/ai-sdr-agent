@@ -70,6 +70,37 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn('skeleton', className)} />
 }
 
+export function EmptyState({ icon: Icon, title, body, action }: {
+  icon: typeof import('lucide-react').Inbox
+  title: string
+  body: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="card flex flex-col items-center px-5 py-12 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+        <Icon className="h-6 w-6" />
+      </span>
+      <p className="mt-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</p>
+      <p className="mt-1 max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{body}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  )
+}
+
+export function Alert({ tone = 'info', children }: { tone?: 'info' | 'warning' | 'error'; children: ReactNode }) {
+  const styles = {
+    info: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+    error: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300',
+  }[tone]
+  return (
+    <div role="alert" className={cn('flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm leading-relaxed', styles)}>
+      {children}
+    </div>
+  )
+}
+
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle: string; actions?: ReactNode }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="mb-6 flex flex-wrap items-end justify-between gap-4">

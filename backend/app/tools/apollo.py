@@ -32,20 +32,30 @@ VERIFIED_PEOPLE = {
 }
 
 def lead_score(title: str) -> int:
-    """Founder > C-level > HR / hiring lead > other. Used to order outreach."""
-    t = title.lower()
-    if "founder" in t or "ceo" in t:
+    """Founder > C-level > HR / hiring lead > other. Used to order outreach.
+    Finer tiers than before so a co-founder outranks a VP and a hiring lead
+    outranks a generic manager."""
+    t = (title or "").lower()
+    if "founder" in t and "ceo" in t:
         return 100
-    if "cto" in t or "coo" in t or "operating officer" in t or "chief" in t:
+    if "ceo" in t or "founder" in t:
+        return 100 if "ceo" in t else 95
+    if "cto" in t or "cpo" in t or "chief technology" in t or "chief product" in t:
         return 90
-    if "talent" in t or "people" in t or "hr" in t or "hiring" in t:
+    if "coo" in t or "cfo" in t or "chief" in t:
+        return 85
+    if "talent" in t or "people" in t or "hr" in t or "hiring" in t or "recruit" in t:
         return 80
+    if "vp" in t or "vice president" in t or "director" in t or "head of" in t:
+        return 75
     return 50
 
 def find_people(company: str) -> list[dict]:
-    """Return verified people for a company, scored. Unverified = email ''."""
+    """Return verified people for a company, scored and deduped by email.
+    Unverified = email ''. Apollo results never duplicate a seeded person."""
     key = normalize_company(company).strip().lower()
     people = [dict(p, score=lead_score(p["title"])) for p in VERIFIED_PEOPLE.get(key, [])]
+    seen = {p["email"].strip().lower() for p in people if p.get("email")}
     # Real Apollo lookup when a key is set — only verified emails are kept.
     api_key = os.getenv("APOLLO_API_KEY")
     if api_key:
@@ -53,14 +63,18 @@ def find_people(company: str) -> list[dict]:
             r = requests.post("https://api.apollo.io/v1/mixed_people/search",
                 headers={"X-Api-Key": api_key, "Content-Type": "application/json"},
                 json={"q_organization_name": company, "page": 1, "per_page": 10}, timeout=15)
+            if r.status_code != 200:
+                raise ValueError(f"Apollo returned HTTP {r.status_code}")
             for p in (r.json().get("people") or []):
-                email = (p.get("email") or "")
-                if p.get("email_status") == "verified" and email:
-                    people.append({"name": p.get("name", ""), "title": p.get("title", ""),
+                email = (p.get("email") or "").strip().lower()
+                name = (p.get("name") or "").strip()
+                if p.get("email_status") == "verified" and email and name and email not in seen:
+                    seen.add(email)
+                    people.append({"name": name, "title": (p.get("title") or "").strip(),
                                    "email": email, "verified": True,
                                    "linkedin": p.get("linkedin_url", ""),
                                    "score": lead_score(p.get("title", ""))})
         except Exception:
-            pass
+            pass  # Apollo is optional — seed data still works offline.
     people.sort(key=lambda p: -p["score"])
     return people

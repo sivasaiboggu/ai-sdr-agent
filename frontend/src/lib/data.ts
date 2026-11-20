@@ -111,22 +111,49 @@ export const AGENT_STEPS = [
   { key: 'tracker', label: 'Track replies', detail: 'Classify, follow up in 4–5 days' },
 ] as const
 
-export async function fetchCampaigns(): Promise<{ companies: { name: string; summary: string }[]; mails: { company: string; recipient: string; email: string; subject: string; status: string }[] } | null> {
+export type CampaignsResponse = {
+  companies: { name: string; summary: string }[]
+  mails: { company: string; recipient: string; email: string; subject: string; status: string }[]
+}
+
+export type ChatResponse = {
+  reply: string
+  people: Person[]
+  drafts: Draft[]
+  company?: { name: string; summary: string }
+}
+
+export async function fetchCampaigns(): Promise<CampaignsResponse | null> {
   try {
     const r = await fetch('/api/campaigns')
     if (!r.ok) return null
-    return (await r.json()) as never
+    return (await r.json()) as CampaignsResponse
   } catch {
     return null
   }
 }
 
-export async function sendChat(message: string): Promise<{ reply: string; people: Person[]; drafts: Draft[]; company?: { name: string; summary: string } }> {
+export async function sendChat(message: string): Promise<ChatResponse> {
   const r = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   })
   if (!r.ok) throw new Error(`Agent API returned ${r.status}`)
+  return (await r.json()) as ChatResponse
+}
+
+/** Approve a company's drafts. Throws on network/HTTP failure so the
+ * caller can tell the user the approval did NOT reach the backend. */
+export async function approveCompany(company: string): Promise<{ sent: { to: string; status: string }[]; company: string }> {
+  const r = await fetch('/api/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ company, approve: true }),
+  })
+  if (!r.ok) {
+    const detail = await r.json().catch(() => null)
+    throw new Error(detail?.detail ?? `Approval failed (HTTP ${r.status})`)
+  }
   return (await r.json()) as never
 }

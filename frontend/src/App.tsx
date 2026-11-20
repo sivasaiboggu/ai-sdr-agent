@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Route, Routes, useLocation } from 'react-router-dom'
-import { CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { Sidebar, Topbar } from './components/layout'
 import Dashboard from './pages/Dashboard'
 import Campaigns from './pages/Campaigns'
@@ -21,15 +21,23 @@ function useTheme() {
   return { dark, toggle: () => setDark((d) => !d) }
 }
 
+export type ToastTone = 'success' | 'error' | 'info'
+
+const TOAST_ICON = {
+  success: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 dark:text-emerald-600" />,
+  error: <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400 dark:text-rose-500" />,
+  info: <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400 dark:text-sky-500" />,
+} as const
+
 export default function App() {
   const { dark, toggle } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ msg: string; tone: ToastTone } | null>(null)
   const location = useLocation()
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg)
+  const showToast = useCallback((msg: string, tone: ToastTone = 'success') => {
+    setToast({ msg, tone })
     window.setTimeout(() => setToast(null), 4200)
   }, [])
 
@@ -53,7 +61,7 @@ export default function App() {
             <Route path="*" element={<Dashboard />} />
           </Routes>
           <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-5 text-xs text-zinc-400 dark:border-zinc-800">
-            <span>SDR Agent v0.3 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+            <span>SDR Agent v0.4 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
         </main>
@@ -65,8 +73,8 @@ export default function App() {
             transition={{ duration: 0.25, ease: 'easeOut' }}
             className="fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-2xl bg-zinc-900 px-4 py-3.5 text-sm font-medium text-white shadow-pop dark:bg-white dark:text-zinc-900"
             role="status">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 dark:text-emerald-600" />
-            {toast}
+            {TOAST_ICON[toast.tone]}
+            {toast.msg}
           </motion.div>
         )}
       </AnimatePresence>

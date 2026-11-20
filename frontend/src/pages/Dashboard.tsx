@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, ArrowUpRight, Building2, CheckCircle2, Mail, Reply, Sparkles, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ActivityChart, ReplyDonut } from '../components/charts'
-import { Avatar, Badge, Button, Card, CardHeader, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, fadeUp, PageHeader, Skeleton } from '../components/ui'
 import { AGENT_STEPS, SEED_CAMPAIGNS, SEED_PEOPLE, SEED_REPLIES } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -20,8 +21,33 @@ function Stat({ icon: Icon, label, value, delta, tone }: { icon: typeof Users; l
 }
 
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    const t = window.setTimeout(() => setLoading(false), 600)
+    return () => window.clearTimeout(t)
+  }, [])
   const totalLeads = SEED_PEOPLE.length
   const verified = SEED_PEOPLE.filter((p) => p.verified).length
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Good morning, Sivasai" subtitle="Your agent researched 4 companies this week. Here's what's moving." />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-center justify-between"><Skeleton className="h-10 w-10 rounded-xl" /><Skeleton className="h-5 w-16 rounded-full" /></div>
+              <Skeleton className="mt-4 h-8 w-20" />
+              <Skeleton className="mt-2 h-4 w-28" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="card p-5 xl:col-span-2"><Skeleton className="h-6 w-40" /><Skeleton className="mt-4 h-64 w-full" /></div>
+          <div className="card p-5"><Skeleton className="h-6 w-32" /><Skeleton className="mt-4 h-40 w-40 rounded-full" /></div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div>
       <PageHeader title="Good morning, Sivasai" subtitle="Your agent researched 4 companies this week. Here's what's moving."

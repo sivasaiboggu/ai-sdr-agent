@@ -10,3 +10,4 @@ dist/
 *.tsbuildinfo
 vite.config.js
 .DS_Store
+vite.config.d.ts

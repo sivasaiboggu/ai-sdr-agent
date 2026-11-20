@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Loader2, Send, Sparkles, User } from 'lucide-react'
+import { Bot, Loader2, Send, Sparkles, User, WifiOff } from 'lucide-react'
 import { AGENT_STEPS, sendChat, type Draft } from '../lib/data'
-import { Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
+import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
+import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
 type Msg = { role: 'user' | 'agent'; text: string }
@@ -14,12 +15,13 @@ const SUGGESTIONS = [
   'Research Drivetrain and draft mails',
 ]
 
-export default function Chat({ onToast }: { onToast: (msg: string) => void }) {
+export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'agent', text: "Hi Sivasai — I'm your SDR agent. Give me a company and I'll research it, find the verified founders and hiring leads, and draft personalised mails. Nothing sends without your approval." },
   ])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [apiDown, setApiDown] = useState(false)
   const [step, setStep] = useState(0)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -34,11 +36,14 @@ export default function Chat({ onToast }: { onToast: (msg: string) => void }) {
     const timer = window.setInterval(() => setStep((s) => Math.min(s + 1, AGENT_STEPS.length - 1)), 900)
     try {
       const data = await sendChat(q)
+      setApiDown(false)
       setDrafts(data.drafts ?? [])
       setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
       onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)
     } catch {
-      // Backend not running — show a graceful demo answer instead of a dead end.
+      // Backend not running — show a visible error state, not a dead end.
+      setApiDown(true)
+      onToast('Backend API is not running — start it with `uvicorn backend.app.api:app --port 8000`.', 'error')
       setMessages((m) => [...m, { role: 'agent', text: 'The backend API is not running right now (start it with `uvicorn backend.app.api:app --port 8000`). Try a suggestion below once it is up — or open Drafts to see the seeded mails.' }])
     } finally {
       window.clearInterval(timer)
@@ -51,6 +56,14 @@ export default function Chat({ onToast }: { onToast: (msg: string) => void }) {
   return (
     <div>
       <PageHeader title="Agent chat" subtitle="Talk to the agent in plain language — it plans, researches, drafts, and waits for your approval." />
+      {apiDown && (
+        <div className="mb-4">
+          <Alert tone="error">
+            <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
+            <span><strong>Backend API is not reachable.</strong> Start it with <code className="rounded bg-rose-100 px-1 py-0.5 font-mono text-xs dark:bg-rose-500/20">uvicorn backend.app.api:app --port 8000</code> — until then, drafts below are the seeded demo mails.</span>
+          </Alert>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="flex h-[620px] flex-col overflow-hidden xl:col-span-2">
           <div className="flex items-center gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">

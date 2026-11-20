@@ -9,6 +9,7 @@ below (which is fully personalised from the researched profile).
 """
 import re
 from backend.app.config import USER_PROFILE
+from backend.app.quality import check_draft, validate_draft
 from backend.app.tools.search import normalize_company
 
 HOOKS = {
@@ -38,6 +39,10 @@ def _gemini_draft(prompt: str) -> str | None:
         return None
 
 def draft_mail(company: str, person: dict, profile: dict) -> dict:
+    if not (person.get("name") or "").strip():
+        raise ValueError("Writer needs a person with a name")
+    if not (profile.get("name") or "").strip():
+        raise ValueError("Writer needs a researched company profile")
     key = normalize_company(company).strip().lower()
     first = person["name"].split()[0]
     role = profile.get("role") or "the open AI role"
@@ -60,16 +65,19 @@ BTech CSE, IIIT Kottayam (2023–2027) | Software Developer Intern, Whispry
 sivasaiboggu@gmail.com | 9573719115 | Available immediately — open to anywhere
 Resume attached."""
 
+    draft = {"to": person["email"], "name": person["name"], "title": person["title"],
+             "subject": subject, "body": body}
+
     # Gemini polish (optional): only used to tighten wording, never to add facts.
+    # The polished version is kept only if it still passes every quality check.
     polished = _gemini_draft(
         "Tighten this cold email without adding any new facts, companies, or numbers. Keep it under 180 words:\n\n" + body)
-    if polished and "[" not in polished:
-        body = polished
+    if polished and not check_draft({**draft, "body": polished}, person, profile):
+        draft["body"] = polished
 
-    assert "[" not in body, "Writer left a bracket in the mail"
-    assert person["email"] and "@" in person["email"], "Writer needs a verified email"
-    return {"to": person["email"], "name": person["name"], "title": person["title"],
-            "subject": subject, "body": body}
+    # Hard gate: a bad draft raises here instead of reaching approval/send.
+    validate_draft(draft, person, profile)
+    return draft
 
 def run(state: dict) -> dict:
     profile = state["profile"]

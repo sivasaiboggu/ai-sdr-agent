@@ -34,8 +34,12 @@ def handle_text(sender: str, text: str) -> str:
     if low in ("start", "hi", "hello", "help", "menu"):
         return HELP
 
+    if low == "research":
+        return "Which company? Try 'research iion'."
     if low.startswith("research "):
         company = msg[len("research "):].strip()
+        if not company:
+            return "Which company? Try 'research iion'."
         result = run_campaign(company, approve=False)
         _PENDING[sender] = {"company": company, "drafts": result["drafts"]}
         people = "\n".join(
@@ -98,8 +102,12 @@ async def webhook_get(request: Request):
     return {"error": "verification failed"}, 403
 
 async def webhook_post(request: Request):
-    """Incoming message — Cloud API shape, with Twilio sandbox shape handled too."""
-    body = await request.json()
+    """Incoming message — Cloud API shape, with Twilio sandbox shape handled too.
+    Malformed bodies are ignored instead of 500ing the webhook."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "ignored"}
     # Cloud API: entry[0].changes[0].value.messages[0]
     try:
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
@@ -107,11 +115,16 @@ async def webhook_post(request: Request):
         text = msg["text"]["body"]
     except Exception:
         # Twilio sandbox posts form fields From / Body instead.
-        form = await request.form()
+        try:
+            form = await request.form()
+        except Exception:
+            return {"status": "ignored"}
         sender = str(form.get("From", "")).replace("whatsapp:", "")
         text = str(form.get("Body", ""))
         if not text:
             return {"status": "ignored"}
+    if not sender or not text:
+        return {"status": "ignored"}
     reply = handle_text(sender, text)
     send_whatsapp(sender, reply)
     return {"status": "ok"}

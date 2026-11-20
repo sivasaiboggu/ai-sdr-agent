@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { ArrowUpRight, Building2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_CAMPAIGNS, SEED_PEOPLE } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -11,7 +11,14 @@ export default function Campaigns({ query }: { query: string }) {
     <div>
       <PageHeader title="Campaigns" subtitle="One campaign per company — research, leads, drafts and replies in one place."
         actions={<Link to="/chat"><Button variant="brand">+ New campaign</Button></Link>} />
-      {list.length === 0 && <p className="text-sm text-zinc-500">No campaigns match “{query}”.</p>}
+      {list.length === 0 && (
+        <EmptyState
+          icon={Building2}
+          title={query ? `No campaigns match “${query}”` : 'No campaigns yet'}
+          body="Start a campaign from Agent chat — research a company and the agent drafts personalised mails for its verified founders and hiring leads."
+          action={<Link to="/chat"><Button variant="brand">+ New campaign</Button></Link>}
+        />
+      )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {list.map((c, i) => {
           const people = SEED_PEOPLE.filter((p) => p.company === c.name)
@@ -50,7 +57,6 @@ export default function Campaigns({ query }: { query: string }) {
           )
         })}
       </div>
-      {list.length === 0 && <div className="card mt-4 flex items-center gap-3 p-6 text-sm text-zinc-500"><Building2 className="h-5 w-5" /> Start a campaign from Agent chat — “Research &lt;company&gt; and draft mails”.</div>}
     </div>
   )
 }

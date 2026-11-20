@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
-import { CalendarClock, Inbox } from 'lucide-react'
-import { Avatar, Badge, Card, fadeUp, PageHeader } from '../components/ui'
+import { CalendarClock, Inbox, Reply } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_REPLIES } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -15,6 +16,14 @@ export default function Replies() {
   return (
     <div>
       <PageHeader title="Replies" subtitle="Every reply the tracker sees, classified — with the next step already written for you." />
+      {SEED_REPLIES.length === 0 && (
+        <EmptyState
+          icon={Reply}
+          title="No replies yet"
+          body="Replies land here once the tracker classifies them — interested, not now, bounce or out of office — with the next step already written for you."
+          action={<Link to="/drafts"><Button variant="brand">Review drafts</Button></Link>}
+        />
+      )}
       <div className="space-y-3">
         {SEED_REPLIES.map((r, i) => (
           <motion.div key={r.id} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card p-5">

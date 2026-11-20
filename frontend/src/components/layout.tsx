@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Users, Mail, MessageSquare, Reply,
@@ -88,6 +89,18 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 export function Topbar({ dark, onToggleTheme, onOpenSidebar, query, onQuery }: {
   dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; query: string; onQuery: (v: string) => void
 }) {
+  const searchRef = useRef<HTMLInputElement>(null)
+  // ⌘K / Ctrl+K focuses the search box, as the kbd hint promises.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <motion.header initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
       className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/80 backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-950/80">
@@ -97,7 +110,7 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, query, onQuery }: {
         </button>
         <div className="relative hidden w-full max-w-md sm:block">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search companies, leads, mails…"
+          <input ref={searchRef} value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search companies, leads, mails…"
             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:bg-zinc-900" />
           <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 md:block">⌘K</kbd>
         </div>

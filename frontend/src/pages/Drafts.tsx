@@ -1,23 +1,48 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronDown, Clock, Paperclip, Send } from 'lucide-react'
-import { Avatar, Badge, Button, Card, fadeUp, PageHeader } from '../components/ui'
-import { SEED_DRAFTS, type Draft } from '../lib/data'
+import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, Send } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { approveCompany, SEED_DRAFTS, type Draft } from '../lib/data'
+import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
-export default function Drafts({ onToast }: { onToast: (msg: string) => void }) {
+export default function Drafts({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
   const [open, setOpen] = useState<string | null>(SEED_DRAFTS[0]?.to ?? null)
   const [approved, setApproved] = useState<Set<string>>(new Set())
+  const [sending, setSending] = useState<string | null>(null)
 
-  function approve(d: Draft) {
-    setApproved((s) => new Set(s).add(d.to))
-    onToast(`Draft to ${d.name} approved — it will send with the 5-minute gap.`)
+  async function approve(d: Draft) {
+    if (sending) return
+    setSending(d.to)
+    try {
+      const res = await approveCompany(d.company ?? '')
+      const status = res.sent.find((s) => s.to === d.to)?.status ?? 'queued'
+      setApproved((s) => new Set(s).add(d.to))
+      onToast(`Draft to ${d.name} approved — ${status}. It sends with the 5-minute gap.`)
+    } catch (e) {
+      // Backend not running (or the approval failed): say so plainly.
+      // Mark it approved locally so the demo flow still works, but never
+      // claim the mail was queued when it wasn't.
+      setApproved((s) => new Set(s).add(d.to))
+      onToast(`Approved locally only — the backend did not confirm it (${e instanceof Error ? e.message : 'unreachable'}). Nothing was queued to send.`, 'error')
+    } finally {
+      setSending(null)
+    }
   }
 
   return (
     <div>
       <PageHeader title="Draft mails" subtitle="Personalised from real research. Nothing sends without your approval — approve a draft and the sender takes it from there."
         actions={<Badge tone="warning"><Clock className="h-3 w-3" /> Approval required</Badge>} />
+      {SEED_DRAFTS.length === 0 && (
+        <EmptyState
+          icon={Mail}
+          title="No drafts waiting"
+          body="Drafts appear here after the agent researches a company — each one personalised from real research and waiting for your approval before anything sends."
+          action={<Link to="/chat"><Button variant="brand">Research a company</Button></Link>}
+        />
+      )}
       <div className="space-y-3">
         {SEED_DRAFTS.map((d, i) => {
           const isOpen = open === d.to
@@ -46,8 +71,8 @@ export default function Drafts({ onToast }: { onToast: (msg: string) => void }) 
                         <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500"><Paperclip className="h-3.5 w-3.5" /> Sivasai_Boggu_Resume.pdf attached</span>
                         <span className="ml-auto flex gap-2">
                           <Button variant="ghost" onClick={() => onToast('Edit mode — change the hook or proof, then approve again.')}>Edit draft</Button>
-                          <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved} onClick={() => approve(d)}>
-                            <Send className="h-4 w-4" /> {isApproved ? 'Approved ✓' : 'Approve & send'}
+                          <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved || sending === d.to} onClick={() => approve(d)}>
+                            {sending === d.to ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isApproved ? 'Approved ✓' : sending === d.to ? 'Approving…' : 'Approve & send'}
                           </Button>
                         </span>
                       </div>

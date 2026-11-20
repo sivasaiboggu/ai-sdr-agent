@@ -19,7 +19,12 @@ sends with a 5-minute gap, tracks replies, and remembers everything.
    but never mailed.
 4. **Personalised writing** — hook from real research, proof from the
    user's real projects (HireMind AI, AuditMind, SecureFlow, Whispry MERN).
-   No `[bracket]` ever survives — the Writer rejects such a mail.
+   No `[bracket]` ever survives — the Writer rejects such a mail. Every
+   draft passes a quality gate (`backend/app/quality.py`): valid verified
+   email, subject present, greeted by first name, personalised hook
+   (company or role mentioned), proof from a real project, 60–300 words.
+   The Sender re-checks every draft and **blocks** any that fail instead
+   of mailing it.
 5. **Sender + Tracker** — Gmail, 5-minute gap, PDF resume attached,
    reply classification (interested / not now / bounce / out of office),
    follow-up in 4–5 days.
@@ -159,8 +164,31 @@ back to seeded demo data when the API is not running.
 Run tests:
 
 ```bash
-pytest tests/ -q
+pytest tests/ -q   # 25 tests: writer quality gate, lead scoring, sender
+                   # guard, approval flow, WhatsApp handler, API validation
 ```
+
+## v0.4 — what changed (20 Nov 2026)
+
+- **Draft quality gate** — `backend/app/quality.py` checks every mail
+  (no brackets/placeholders, valid email, hook + proof present, 60–300
+  words); the Writer raises on a bad draft and only keeps a Gemini polish
+  that still passes; the Sender blocks failing drafts as a last defence.
+- **Lead scoring** — finer tiers (CEO/founder 100, co-founder 95, CTO/CPO
+  90, COO/CFO 85, HR/hiring 80, VP/director 75, other 50); Apollo results
+  deduped by email, skipped when name/email missing, non-200 rejected.
+- **API hardening** — pydantic validation on `/chat`, `/approve`,
+  `/whatsapp/test` (empty/over-long input → 422); agent failures → 502;
+  `/approve` → 404 when there are no drafts; graph falls back to the
+  sequential pipeline if LangGraph fails, and always returns complete
+  state; `SEND_GAP_SECONDS` typos no longer crash startup.
+- **Dashboard polish** — loading skeletons on Overview, shared
+  EmptyState/Alert components on every page, toast tones (success/error/
+  info), Drafts approval calls the real `/api/approve` and says plainly
+  when the backend is unreachable, Chat shows a persistent error banner
+  when the API is down, ⌘K focuses search.
+- **Safety unchanged** — dry-run by default, nothing sends without
+  approval, verified emails only, no keys committed.
 
 Docker:
 

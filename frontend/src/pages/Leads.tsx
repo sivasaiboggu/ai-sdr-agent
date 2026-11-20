@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BadgeCheck, Mail, Search } from 'lucide-react'
-import { Avatar, Badge, Card, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_PEOPLE } from '../lib/data'
 import { cn } from '../lib/utils'
 
@@ -79,11 +79,11 @@ export default function Leads({ query }: { query: string }) {
             </tbody>
           </table>
           {list.length === 0 && (
-            <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
-              <Search className="h-6 w-6 text-zinc-300" />
-              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">No leads match your filters</p>
-              <p className="text-xs text-zinc-400">Try clearing the search or choosing another company.</p>
-            </div>
+            <EmptyState
+              icon={Search}
+              title="No leads match your filters"
+              body="Try clearing the search or choosing another company — or research a new company in Agent chat to find more verified leads."
+            />
           )}
         </div>
       </Card>
