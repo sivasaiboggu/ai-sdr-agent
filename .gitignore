@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+*.log
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+.DS_Store
