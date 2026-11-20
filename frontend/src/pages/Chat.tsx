@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Loader2, Send, Sparkles, User, WifiOff } from 'lucide-react'
-import { AGENT_STEPS, sendChat, type Draft } from '../lib/data'
+import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, sendChat, type Draft } from '../lib/data'
 import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
@@ -22,9 +22,22 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [apiDown, setApiDown] = useState(false)
+  // Real backend status from /health — the header must not claim "Online"
+  // when the API was never reached.
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const [step, setStep] = useState(0)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let live = true
+    checkHealth().then((ok) => {
+      if (!live) return
+      setApiStatus(ok ? 'online' : 'offline')
+      setApiDown(!ok)
+    })
+    return () => { live = false }
+  }, [])
 
   async function ask(text: string) {
     const q = text.trim()
@@ -37,14 +50,19 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
     try {
       const data = await sendChat(q)
       setApiDown(false)
+      setApiStatus('online')
       setDrafts(data.drafts ?? [])
       setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
       onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)
     } catch {
       // Backend not running — show a visible error state, not a dead end.
       setApiDown(true)
-      onToast('Backend API is not running — start it with `uvicorn backend.app.api:app --port 8000`.', 'error')
-      setMessages((m) => [...m, { role: 'agent', text: 'The backend API is not running right now (start it with `uvicorn backend.app.api:app --port 8000`). Try a suggestion below once it is up — or open Drafts to see the seeded mails.' }])
+      setApiStatus('offline')
+      const hint = API_BASE_URL
+        ? `Check the backend deployment and that its CORS_ORIGINS allows this site.`
+        : 'Start it with `uvicorn backend.app.api:app --port 8000`.'
+      onToast(`Backend API is not reachable at ${API_BASE_LABEL} — ${hint}`, 'error')
+      setMessages((m) => [...m, { role: 'agent', text: `The backend API is not reachable at ${API_BASE_LABEL} (${hint}). Try a suggestion below once it is up — or open Drafts to see the seeded demo mails.` }])
     } finally {
       window.clearInterval(timer)
       setBusy(false)
@@ -60,7 +78,9 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
         <div className="mb-4">
           <Alert tone="error">
             <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
-            <span><strong>Backend API is not reachable.</strong> Start it with <code className="rounded bg-rose-100 px-1 py-0.5 font-mono text-xs dark:bg-rose-500/20">uvicorn backend.app.api:app --port 8000</code> — until then, drafts below are the seeded demo mails.</span>
+            <span><strong>Backend API is not reachable at {API_BASE_LABEL}.</strong> {API_BASE_URL
+              ? 'Check the backend deployment and that its CORS_ORIGINS allows this site.'
+              : <>Start it with <code className="rounded bg-rose-100 px-1 py-0.5 font-mono text-xs dark:bg-rose-500/20">uvicorn backend.app.api:app --port 8000</code></>} — until then, drafts below are the seeded demo mails.</span>
           </Alert>
         </div>
       )}
@@ -70,7 +90,14 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-5 w-5" /></span>
             <div>
               <p className="text-sm font-bold text-zinc-900 dark:text-white">SDR Agent</p>
-              <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online — LangGraph · Gemini · Gmail</p>
+              <p className={cn('flex items-center gap-1.5 text-xs',
+                apiStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : apiStatus === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500')}>
+                <span className={cn('h-1.5 w-1.5 rounded-full',
+                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')} />
+                {apiStatus === 'online' ? 'Online — LangGraph · Gemini · Gmail'
+                  : apiStatus === 'offline' ? `Backend offline — demo mode (${API_BASE_LABEL})`
+                    : 'Checking backend…'}
+              </p>
             </div>
             <Badge tone="active" className="ml-auto">Human approval on</Badge>
           </div>

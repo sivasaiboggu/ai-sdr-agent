@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { CalendarClock, Inbox, Reply } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_REPLIES } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -16,6 +16,7 @@ export default function Replies() {
   return (
     <div>
       <PageHeader title="Replies" subtitle="Every reply the tracker sees, classified — with the next step already written for you." />
+      <DemoDataNotice what="replies" />
       {SEED_REPLIES.length === 0 && (
         <EmptyState
           icon={Reply}

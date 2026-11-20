@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BadgeCheck, Mail, Search } from 'lucide-react'
-import { Avatar, Badge, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_PEOPLE } from '../lib/data'
 import { cn } from '../lib/utils'
 
@@ -20,6 +20,7 @@ export default function Leads({ query }: { query: string }) {
   return (
     <div>
       <PageHeader title="Leads" subtitle="Founders, CXOs and hiring leads — verified emails only. Unverified people are never mailed." />
+      <DemoDataNotice what="leads" />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(['all', 'verified', 'unverified'] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}

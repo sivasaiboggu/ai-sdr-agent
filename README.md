@@ -164,9 +164,80 @@ back to seeded demo data when the API is not running.
 Run tests:
 
 ```bash
-pytest tests/ -q   # 25 tests: writer quality gate, lead scoring, sender
-                   # guard, approval flow, WhatsApp handler, API validation
+pytest tests/ -q   # 29 tests: writer quality gate, lead scoring, sender
+                   # guard, approval flow, WhatsApp handler, API validation,
+                   # /api prefix parity, CORS preflight
 ```
+
+## Deployment
+
+### Frontend — Vercel (recommended)
+
+1. In Vercel, create a project from this repo with **Root Directory `frontend`**
+   (framework preset: Vite). `frontend/vercel.json` adds the SPA fallback
+   rewrite to `/index.html`.
+2. Set the environment variable **`VITE_API_URL`** to the deployed backend
+   origin, e.g. `https://ai-sdr-agent-api.onrender.com` — no trailing slash,
+   no `/api` suffix. It is baked into the JS bundle at build time, so
+   changing it needs a redeploy.
+3. Deploy. If `VITE_API_URL` is unset, the dashboard calls `/api/*` on its
+   own origin, which Vercel does not proxy to the backend — the Chat page
+   will show "Backend offline" and the dashboard falls back to labelled
+   demo data.
+
+### Backend — Render / Railway / Fly (or any host with a persistent disk)
+
+1. Start command: `uvicorn backend.app.api:app --host 0.0.0.0 --port $PORT`
+   (use the host's `PORT`; locally it is `8000`).
+2. Set env vars from `.env.example`: `GEMINI_API_KEY` / `APOLLO_API_KEY`
+   (optional), `GMAIL_SEND_ENABLED=false` (dry-run default), `DATABASE_URL`,
+   `SEND_GAP_SECONDS=300`, `RESUME_PATH`.
+3. **Set `CORS_ORIGINS` to include the Vercel frontend origin**, e.g.
+   `CORS_ORIGINS=https://ai-sdr-agent.vercel.app,http://localhost:5173`.
+   Without this, browsers block every API call from the deployed dashboard.
+4. Health check: `GET /health` (or `/api/health`) — returns `{"status":
+   "ok", ...}` plus which optional integrations are configured. Point the
+   host's health check at it.
+5. Storage is SQLite (`./sdr.db`); give the backend a persistent volume
+   and back the file up. **Postgres is not wired up yet** — `DATABASE_URL`
+   is read into config but `memory.py` always uses the local SQLite file,
+   so a Postgres URL would be silently ignored. Deploy single-instance
+   with SQLite until that is implemented.
+6. Real Gmail sending is not done by this backend: `sender.py` marks
+   approved drafts `ready-to-send` and the parent agent sends them via
+   Gmail. Do not set `GMAIL_SEND_ENABLED=true` expecting the API to send.
+
+### Docker (local demo only)
+
+```bash
+docker compose up --build   # backend :8000, frontend :5173
+```
+
+Compose builds both images (see `backend/Dockerfile`,
+`frontend/Dockerfile`) and waits for the backend's `/health` before
+starting the frontend. Note: these Dockerfiles were added without a
+Docker daemon available to build-test them — run the command once on a
+machine with Docker before relying on them.
+
+## v0.5 — what changed (20 Nov 2026)
+
+- **API prefix + CORS** — every route is served under `/api` too
+  (`/api/chat`, `/api/campaigns`, `/api/approve`, `/api/health`); the
+  dashboard's calls used to 404. `CORSMiddleware` from `CORS_ORIGINS`
+  lets the Vercel frontend call the backend cross-origin.
+- **Env handling** — `.env` is now actually loaded (`load_dotenv` in
+  `config.py`); `.env.example` documents `CORS_ORIGINS` and `PORT` and
+  notes the Postgres limitation. Frontend reads `VITE_API_URL`
+  (`frontend/.env.example`); the dev proxy strips the `/api` prefix.
+- **Honest dashboard** — seeded demo data is labelled as such on every
+  page; the invented "interested" reply and the hardcoded "50% reply
+  rate" are gone; stats and the reply donut are computed from logged
+  data; Chat shows a real `/health`-based online/offline state; a failed
+  approval no longer shows the draft as approved.
+- **Deployment** — `frontend/vercel.json` (SPA rewrite), Dockerfiles +
+  fixed `docker-compose.yml`, and this Deployment section.
+- **Tests** — 29 tests (was 25): new `tests/test_api.py` covers the
+  `/api` prefix, validation and the CORS preflight.
 
 ## v0.4 — what changed (20 Nov 2026)
 
@@ -204,7 +275,14 @@ docker compose up --build
 | `APOLLO_API_KEY` | Optional. Live Apollo verified-email lookup. |
 | `GMAIL_SEND_ENABLED` | `false` by default (dry-run). `true` only to send real mail. |
 | `SEND_GAP_SECONDS` | 300 by default — 5 minutes between cold mails. |
-| `DATABASE_URL` | `sqlite:///./sdr.db` by default; Postgres URL works too. |
+| `DATABASE_URL` | `sqlite:///./sdr.db` by default. A Postgres URL is accepted by config but **not wired to storage yet** (see note below). |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (default `http://localhost:5173,http://localhost:3000`). Add the deployed frontend origin. |
+| `PORT` | Port the API listens on (`8000` locally; hosts like Render set it). |
+| `VITE_API_URL` | Frontend only (`frontend/.env.example`): deployed backend origin, e.g. `https://ai-sdr-agent-api.onrender.com`. Unset = relative `/api/*` (dev proxy only). |
+
+> Postgres note: `DATABASE_URL` is read into config, but storage currently
+> always uses the local SQLite file — a Postgres URL is silently ignored.
+> See Deployment.
 | `RESUME_PATH` | PDF attached to every mail. |
 
 ## Demo flow

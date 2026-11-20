@@ -5,31 +5,70 @@ POST /approve {"company": "...", "approve": true} -> sends the drafts.
 GET  /campaigns -> saved companies / people / mails from memory.
 WS   /ws -> live agent progress events.
 
+Every route is also served under `/api` (`/api/chat`, `/api/campaigns`,
+...) — the dashboard calls `/api/*` (dev proxy and `VITE_API_URL` builds),
+so the unprefixed-only routes used to 404 every dashboard call.
+
+CORS: the deployed frontend (Vercel) is a different origin, so browsers
+block cross-origin calls unless the backend allows it. Allowed origins
+come from `CORS_ORIGINS` (see `backend/app/config.py`); local dev
+(localhost:5173) is allowed by default.
+
 Safety: nothing is sent without approval, and a draft that fails the
 quality gate is blocked by the sender instead of mailed.
 """
-from fastapi import FastAPI, HTTPException, WebSocket, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from backend.app.config import settings
 from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-app = FastAPI(title="AI SDR Agent", version="0.3.0")
+APP_VERSION = "0.5.0"
+
+app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+
+router = APIRouter()
+
 
 class WhatsAppTestRequest(BaseModel):
     from_number: str = Field(default="+919573719115", min_length=5, max_length=20)
     text: str = Field(default="help", min_length=1, max_length=2000)
 
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
+
 
 class ApproveRequest(BaseModel):
     company: str = Field(min_length=1, max_length=200)
     approve: bool = True
 
-@app.get("/health")
+
+@router.get("/health")
 def health():
-    return {"status": "ok", "agent": "ai-sdr-agent"}
+    # No secrets here — only which optional integrations are configured,
+    # so a deploy health check can tell a misconfigured backend apart
+    # from a healthy one without leaking keys.
+    return {
+        "status": "ok",
+        "agent": "ai-sdr-agent",
+        "version": APP_VERSION,
+        "database": settings.database_kind,
+        "gmail_send_enabled": settings.gmail_send_enabled,
+        "gemini_configured": settings.has_gemini,
+        "apollo_configured": settings.has_apollo,
+    }
+
 
 def _parse_company(message: str) -> str | None:
     """Plain-language parsing: 'research <company>' / 'draft mails for <company>'."""
@@ -41,7 +80,8 @@ def _parse_company(message: str) -> str | None:
             return company or None
     return None
 
-@app.post("/chat")
+
+@router.post("/chat")
 def chat(req: ChatRequest):
     company = _parse_company(req.message)
     if not company:
@@ -60,7 +100,8 @@ def chat(req: ChatRequest):
         "drafts": result["drafts"],
     }
 
-@app.post("/approve")
+
+@router.post("/approve")
 def approve(req: ApproveRequest):
     if not req.approve:
         return {"sent": [], "company": req.company, "detail": "Not approved — nothing sent."}
@@ -75,7 +116,8 @@ def approve(req: ApproveRequest):
         raise HTTPException(status_code=404, detail=f"No drafts found for {req.company!r} — research it first, or no verified emails exist for it.")
     return {"sent": result.get("sent", []), "company": req.company}
 
-@app.get("/campaigns")
+
+@router.get("/campaigns")
 def campaigns():
     try:
         conn = mem.connect()
@@ -87,22 +129,32 @@ def campaigns():
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],
             "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "status": m[4]} for m in mails]}
 
-@app.websocket("/ws")
+
+@router.websocket("/ws")
 async def ws(ws: WebSocket):
     await ws.accept()
     await ws.send_json({"event": "connected", "message": "AI SDR Agent live — send a chat message to start a campaign."})
     await ws.close()
 
+
 # --- WhatsApp (free Cloud API / Twilio sandbox, see README) ---
-@app.get("/whatsapp/webhook")
+@router.get("/whatsapp/webhook")
 async def wa_verify(request: Request):
     return await wa.webhook_get(request)
 
-@app.post("/whatsapp/webhook")
+
+@router.post("/whatsapp/webhook")
 async def wa_incoming(request: Request):
     return await wa.webhook_post(request)
 
-@app.post("/whatsapp/test")
+
+@router.post("/whatsapp/test")
 def wa_test(req: WhatsAppTestRequest):
     """Free local test — no WhatsApp account needed. Returns the agent's reply."""
     return {"from": req.from_number, "reply": wa.handle_text(req.from_number, req.text)}
+
+
+# Same routes with and without the /api prefix: the dashboard (and the
+# README) use /api/*, direct curl/CLI users use the bare paths.
+app.include_router(router)
+app.include_router(router, prefix="/api")

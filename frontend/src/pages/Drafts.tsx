@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, Send } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { approveCompany, SEED_DRAFTS, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
@@ -21,11 +21,11 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
       setApproved((s) => new Set(s).add(d.to))
       onToast(`Draft to ${d.name} approved — ${status}. It sends with the 5-minute gap.`)
     } catch (e) {
-      // Backend not running (or the approval failed): say so plainly.
-      // Mark it approved locally so the demo flow still works, but never
-      // claim the mail was queued when it wasn't.
-      setApproved((s) => new Set(s).add(d.to))
-      onToast(`Approved locally only — the backend did not confirm it (${e instanceof Error ? e.message : 'unreachable'}). Nothing was queued to send.`, 'error')
+      // Backend not running (or the approval failed): say so plainly and
+      // do NOT mark the draft approved — the badge must never claim a mail
+      // was queued when the backend never confirmed it. The user can retry
+      // once the backend is reachable.
+      onToast(`Approval did NOT reach the backend (${e instanceof Error ? e.message : 'unreachable'}). Nothing was queued — fix the backend connection and try again.`, 'error')
     } finally {
       setSending(null)
     }
@@ -35,6 +35,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
     <div>
       <PageHeader title="Draft mails" subtitle="Personalised from real research. Nothing sends without your approval — approve a draft and the sender takes it from there."
         actions={<Badge tone="warning"><Clock className="h-3 w-3" /> Approval required</Badge>} />
+      <DemoDataNotice what="drafts" />
       {SEED_DRAFTS.length === 0 && (
         <EmptyState
           icon={Mail}

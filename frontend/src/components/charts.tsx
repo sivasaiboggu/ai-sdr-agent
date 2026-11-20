@@ -1,11 +1,11 @@
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { REPLY_MIX, WEEKLY_ACTIVITY } from '../lib/data'
+import { DEMO_WEEKLY_ACTIVITY, REPLY_MIX } from '../lib/data'
 
 export function ActivityChart() {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={WEEKLY_ACTIVITY} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+        <AreaChart data={DEMO_WEEKLY_ACTIVITY} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
           <defs>
             <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.35} />
@@ -31,6 +31,10 @@ export function ActivityChart() {
 }
 
 export function ReplyDonut() {
+  const total = REPLY_MIX.reduce((n, d) => n + d.value, 0)
+  if (total === 0) {
+    return <p className="py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">No replies logged yet — the breakdown appears once the tracker classifies a real reply.</p>
+  }
   return (
     <div className="flex items-center gap-4">
       <div className="h-40 w-40 shrink-0">

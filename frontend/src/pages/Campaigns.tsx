@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { ArrowUpRight, Building2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { SEED_CAMPAIGNS, SEED_PEOPLE } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -11,6 +11,7 @@ export default function Campaigns({ query }: { query: string }) {
     <div>
       <PageHeader title="Campaigns" subtitle="One campaign per company — research, leads, drafts and replies in one place."
         actions={<Link to="/chat"><Button variant="brand">+ New campaign</Button></Link>} />
+      <DemoDataNotice />
       {list.length === 0 && (
         <EmptyState
           icon={Building2}

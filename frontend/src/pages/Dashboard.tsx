@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, ArrowUpRight, Building2, CheckCircle2, Mail, Reply, Sparkles, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ActivityChart, ReplyDonut } from '../components/charts'
-import { Avatar, Badge, Button, Card, CardHeader, fadeUp, PageHeader, Skeleton } from '../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, DemoDataNotice, fadeUp, PageHeader, Skeleton } from '../components/ui'
 import { AGENT_STEPS, SEED_CAMPAIGNS, SEED_PEOPLE, SEED_REPLIES } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -28,10 +28,17 @@ export default function Dashboard() {
   }, [])
   const totalLeads = SEED_PEOPLE.length
   const verified = SEED_PEOPLE.filter((p) => p.verified).length
+  // Stats are computed from the seeded campaigns/replies, never hardcoded:
+  // the old "50% reply rate / 1 interested" was invented — the only reply
+  // actually logged is a bounce, so there is no reply rate to show.
+  const mailsSent = SEED_CAMPAIGNS.reduce((n, c) => n + c.sent, 0)
+  const repliesLogged = SEED_REPLIES.length
+  const interested = SEED_REPLIES.filter((r) => r.classification === 'interested').length
+  const bounces = SEED_REPLIES.filter((r) => r.classification === 'bounce').length
   if (loading) {
     return (
       <div>
-        <PageHeader title="Good morning, Sivasai" subtitle="Your agent researched 4 companies this week. Here's what's moving." />
+        <PageHeader title="Good morning, Sivasai" subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data." />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="card p-5">
@@ -50,28 +57,29 @@ export default function Dashboard() {
   }
   return (
     <div>
-      <PageHeader title="Good morning, Sivasai" subtitle="Your agent researched 4 companies this week. Here's what's moving."
+      <PageHeader title="Good morning, Sivasai" subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data."
         actions={<>
           <Link to="/chat"><Button variant="ghost"><Sparkles className="h-4 w-4" /> New campaign</Button></Link>
           <Link to="/drafts"><Button variant="brand">Review drafts <ArrowRight className="h-4 w-4" /></Button></Link>
         </>} />
+      <DemoDataNotice what="stats, charts and replies" />
 
       <motion.div initial="hidden" animate="show" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={Building2} label="Active campaigns" value={String(SEED_CAMPAIGNS.length)} delta="2 this week" tone="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400" />
-        <Stat icon={Users} label="Verified leads" value={`${verified} / ${totalLeads}`} delta="83% verified" tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" />
-        <Stat icon={Mail} label="Mails sent" value="2" delta="5-min gap" tone="bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400" />
-        <Stat icon={Reply} label="Reply rate" value="50%" delta="1 interested" tone="bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" />
+        <Stat icon={Building2} label="Active campaigns" value={String(SEED_CAMPAIGNS.length)} delta="seeded demo" tone="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400" />
+        <Stat icon={Users} label="Verified leads" value={`${verified} / ${totalLeads}`} delta="seeded demo" tone="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" />
+        <Stat icon={Mail} label="Mails sent" value={String(mailsSent)} delta="5-min gap" tone="bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400" />
+        <Stat icon={Reply} label="Replies logged" value={String(repliesLogged)} delta={`${interested} interested · ${bounces} bounce`} tone="bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" />
       </motion.div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <motion.div variants={fadeUp} initial="hidden" animate="show" custom={1} className="card xl:col-span-2">
-          <CardHeader title="Outreach activity" subtitle="Mails sent vs replies received, this week"
-            action={<Badge tone="active">Live</Badge>} />
+          <CardHeader title="Outreach activity" subtitle="Sample week — illustrative, not live data"
+            action={<Badge tone="muted">Demo data</Badge>} />
           <div className="p-5"><ActivityChart /></div>
         </motion.div>
 
         <motion.div variants={fadeUp} initial="hidden" animate="show" custom={2} className="card">
-          <CardHeader title="Reply breakdown" subtitle="How inboxes answered" />
+          <CardHeader title="Reply breakdown" subtitle="Counted from logged replies" />
           <div className="p-5"><ReplyDonut /></div>
         </motion.div>
       </div>

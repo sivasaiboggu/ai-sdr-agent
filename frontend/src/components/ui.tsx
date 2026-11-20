@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { motion } from 'framer-motion'
+import { Info } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 export function Button({
@@ -97,6 +98,18 @@ export function Alert({ tone = 'info', children }: { tone?: 'info' | 'warning' |
   return (
     <div role="alert" className={cn('flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm leading-relaxed', styles)}>
       {children}
+    </div>
+  )
+}
+
+/** Shown wherever the page renders seeded demo data (campaigns, leads,
+ * drafts, replies, dashboard stats) so seeded examples are never
+ * mistaken for live results. */
+export function DemoDataNotice({ what = 'campaigns, leads, drafts and replies' }: { what?: string }) {
+  return (
+    <div role="note" className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      <span><strong>Demo data.</strong> The {what} below are seeded examples from the Nov 2026 research, not live results. Start the backend and use Agent chat for live campaigns.</span>
     </div>
   )
 }

@@ -1,10 +1,30 @@
+# Local demo stack. Production hosting is Vercel (frontend) + a host with a
+# persistent disk for the backend (Render/Railway/Fly) — see README Deployment.
+# NOTE: there is no Docker on this dev VM, so these Dockerfiles are NOT
+# build-tested here; validate with `docker compose up --build` on a machine
+# with Docker before relying on them.
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports: ["8000:8000"]
     env_file: .env
     volumes: ["./sdr.db:/app/sdr.db"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Baked into the JS bundle at build time. The browser calls this
+        # origin directly, so for local compose it is the host's localhost.
+        VITE_API_URL: http://localhost:8000
     ports: ["5173:5173"]
-    depends_on: [backend]
+    depends_on:
+      backend:
+        condition: service_healthy

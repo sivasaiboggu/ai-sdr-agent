@@ -39,7 +39,10 @@ export type ReplyItem = {
   receivedAt: string
 }
 
-/** Real verified leads seeded by the agent's research (Apollo, 19 Nov 2026). */
+/** Seeded demo data — a snapshot of the real Nov 2026 research (Apollo,
+ * 19 Nov 2026) used when the backend is not running. These are examples,
+ * not live results: pages that render them must show <DemoDataNotice />.
+ * Real campaigns come from the backend (/campaigns, /chat) once it is up. */
 export const SEED_PEOPLE: Person[] = [
   { name: 'Sanjaya Molligoda', title: 'Co-Founder', email: 'sanjaya@iion.io', company: 'iion', score: 100, verified: true, linkedin: 'sanjayamolligoda' },
   { name: 'Wout van Damme', title: 'Co-Founder', email: 'wout@iion.io', company: 'iion', score: 100, verified: true, linkedin: 'woutvandamme' },
@@ -58,7 +61,7 @@ export const SEED_PEOPLE: Person[] = [
 export const SEED_CAMPAIGNS: Campaign[] = [
   { name: 'iion', summary: 'Self-serve ad platform for gaming — immersiion. Agentic Workflows intern role.', role: 'AI Engineering Intern', status: 'sent', leads: 4, sent: 1, replies: 0, replyRate: 0, updatedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString() },
   { name: 'Alchemyst AI', summary: 'Context layer for building context-aware agents. Full Stack AI Engineer Intern.', role: 'Full Stack AI Engineer Intern', status: 'active', leads: 3, sent: 0, replies: 0, replyRate: 0, updatedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString() },
-  { name: 'Discover Dollar', summary: 'Contract-compliance & rebate recovery with RAG agents. AI Engineer Intern.', role: 'AI Engineer Intern', status: 'replied', leads: 3, sent: 1, replies: 1, replyRate: 100, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString() },
+  { name: 'Discover Dollar', summary: 'Contract-compliance & rebate recovery with RAG agents. AI Engineer Intern.', role: 'AI Engineer Intern', status: 'sent', leads: 3, sent: 1, replies: 0, replyRate: 0, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString() },
   { name: 'Drivetrain', summary: 'FP&A platform — Gen AI for finance planning. Engineering Intern, Gen AI.', role: 'Engineering Intern — Gen AI', status: 'draft', leads: 2, sent: 0, replies: 0, replyRate: 0, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
 ]
 
@@ -81,11 +84,17 @@ export const SEED_DRAFTS: Draft[] = [
 ]
 
 export const SEED_REPLIES: ReplyItem[] = [
-  { id: 'r1', from: 'Subrahmanya Rao', company: 'Discover Dollar', subject: 'Re: LangGraph, LangChain, MCP — this stack is my stack', classification: 'interested', snippet: 'Thanks Sivasai — this is interesting. Can you share a short demo of the contract agent?', receivedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
+  // Only the bounce is a real logged event (jobs@iion.io, 19 Nov 2026).
+  // No interested reply has been received — an earlier seeded "interested"
+  // reply was invented and has been removed; do not re-add replies
+  // without a real message behind them.
   { id: 'r2', from: 'Mail Delivery Subsystem', company: 'iion', subject: 'Delivery Status Notification', classification: 'bounce', snippet: '550 5.1.1 — the email account jobs@iion.io does not exist. Do not resend to this address.', receivedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
 ]
 
-export const WEEKLY_ACTIVITY = [
+/** Illustrative sample week for the activity chart — NOT measured data.
+ * No backend endpoint serves activity aggregates yet, so the chart is a
+ * placeholder shape; the Dashboard labels it as such. */
+export const DEMO_WEEKLY_ACTIVITY = [
   { day: 'Mon', sent: 2, replies: 0 },
   { day: 'Tue', sent: 3, replies: 1 },
   { day: 'Wed', sent: 1, replies: 0 },
@@ -95,12 +104,21 @@ export const WEEKLY_ACTIVITY = [
   { day: 'Sun', sent: 0, replies: 0 },
 ]
 
-export const REPLY_MIX = [
-  { name: 'Interested', value: 3, color: '#10b981' },
-  { name: 'Not now', value: 2, color: '#f59e0b' },
-  { name: 'Bounce', value: 1, color: '#f43f5e' },
-  { name: 'Out of office', value: 1, color: '#6366f1' },
-]
+export const REPLY_MIX_COLORS: Record<ReplyItem['classification'], string> = {
+  interested: '#10b981',
+  'not-now': '#f59e0b',
+  bounce: '#f43f5e',
+  'out-of-office': '#6366f1',
+}
+
+/** Reply breakdown, counted from the logged replies above — never
+ * hardcoded. With only the one real bounce logged, the donut shows a
+ * single slice, which is the honest picture until real replies arrive. */
+export const REPLY_MIX = (['interested', 'not-now', 'bounce', 'out-of-office'] as const).map((name) => ({
+  name: name === 'not-now' ? 'Not now' : name === 'out-of-office' ? 'Out of office' : name[0]!.toUpperCase() + name.slice(1),
+  value: SEED_REPLIES.filter((r) => r.classification === name).length,
+  color: REPLY_MIX_COLORS[name],
+}))
 
 export const AGENT_STEPS = [
   { key: 'research', label: 'Research company', detail: 'Web, careers page, LinkedIn — with cited sources' },
@@ -123,9 +141,55 @@ export type ChatResponse = {
   company?: { name: string; summary: string }
 }
 
+/**
+ * Where the backend lives.
+ *
+ * - Local dev (`npm run dev`): unset, so calls go to the relative `/api/*`
+ *   path and Vite's dev proxy forwards them to http://localhost:8000
+ *   (see vite.config.ts, which strips the `/api` prefix).
+ * - Production (Vercel): set `VITE_API_URL` to the deployed backend
+ *   origin, e.g. `https://ai-sdr-agent-api.onrender.com` — no trailing
+ *   slash, no `/api` suffix. The dashboard then calls the backend
+ *   directly (CORS for that origin must be allowed server-side via
+ *   `CORS_ORIGINS`).
+ *
+ * There is deliberately no hardcoded `localhost` here: a production
+ * build with `VITE_API_URL` unset would otherwise try to reach a
+ * backend on the viewer's own machine. With it unset in production
+ * the calls go to the same origin (`/api/*`), which only works if the
+ * host proxies `/api` to the backend — Vercel does not by default, so
+ * set `VITE_API_URL` when deploying.
+ */
+export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ?? ''
+
+/** Label shown in error states so the user knows which backend was tried. */
+export const API_BASE_LABEL = API_BASE_URL || 'same origin (/api)'
+
+/** Build a backend URL: `/chat` etc. against the configured base. */
+export function apiUrl(path: string): string {
+  return API_BASE_URL ? `${API_BASE_URL}${path}` : `/api${path}`
+}
+
+/** True when the backend answers /health within `timeoutMs`. Used to
+ * show an honest online/offline state instead of assuming "Online". */
+export async function checkHealth(timeoutMs = 5000): Promise<boolean> {
+  try {
+    const ctrl = new AbortController()
+    const t = window.setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+      const r = await fetch(apiUrl('/health'), { signal: ctrl.signal })
+      return r.ok
+    } finally {
+      window.clearTimeout(t)
+    }
+  } catch {
+    return false
+  }
+}
+
 export async function fetchCampaigns(): Promise<CampaignsResponse | null> {
   try {
-    const r = await fetch('/api/campaigns')
+    const r = await fetch(apiUrl('/campaigns'))
     if (!r.ok) return null
     return (await r.json()) as CampaignsResponse
   } catch {
@@ -134,7 +198,7 @@ export async function fetchCampaigns(): Promise<CampaignsResponse | null> {
 }
 
 export async function sendChat(message: string): Promise<ChatResponse> {
-  const r = await fetch('/api/chat', {
+  const r = await fetch(apiUrl('/chat'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
@@ -146,7 +210,7 @@ export async function sendChat(message: string): Promise<ChatResponse> {
 /** Approve a company's drafts. Throws on network/HTTP failure so the
  * caller can tell the user the approval did NOT reach the backend. */
 export async function approveCompany(company: string): Promise<{ sent: { to: string; status: string }[]; company: string }> {
-  const r = await fetch('/api/approve', {
+  const r = await fetch(apiUrl('/approve'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ company, approve: true }),
