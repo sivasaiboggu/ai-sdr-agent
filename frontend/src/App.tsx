@@ -4,6 +4,7 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { Sidebar, Topbar } from './components/layout'
 import CommandPalette from './components/CommandPalette'
+import Discover from './pages/Discover'
 import Dashboard from './pages/Dashboard'
 import Campaigns from './pages/Campaigns'
 import Leads from './pages/Leads'
@@ -68,6 +69,7 @@ export default function App() {
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/discover" element={<Discover />} />
             <Route path="/campaigns" element={<Campaigns query={query} />} />
             <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
             <Route path="/drafts" element={<Drafts onToast={showToast} />} />
@@ -76,7 +78,7 @@ export default function App() {
             <Route path="*" element={<Dashboard />} />
           </Routes>
           <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-5 text-xs text-zinc-400 dark:border-zinc-800">
-            <span>SDR Agent v0.7 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+            <span>SDR Agent v0.8 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
         </main>

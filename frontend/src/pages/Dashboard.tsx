@@ -22,6 +22,8 @@ function Stat({ icon: Icon, label, value, delta, tone }: { icon: typeof Users; l
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   useEffect(() => {
     const t = window.setTimeout(() => setLoading(false), 600)
     return () => window.clearTimeout(t)
@@ -38,7 +40,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Good morning, Sivasai" subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data." />
+        <PageHeader title={`${greeting}, Sivasai`} subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data." />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="card p-5">
@@ -57,7 +59,7 @@ export default function Dashboard() {
   }
   return (
     <div>
-      <PageHeader title="Good morning, Sivasai" subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data."
+      <PageHeader title={`${greeting}, Sivasai`} subtitle="Seeded demo — 4 companies researched in Nov 2026. Connect the backend for live data."
         actions={<>
           <Link to="/chat"><Button variant="ghost"><Sparkles className="h-4 w-4" /> New campaign</Button></Link>
           <Link to="/drafts"><Button variant="brand">Review drafts <ArrowRight className="h-4 w-4" /></Button></Link>

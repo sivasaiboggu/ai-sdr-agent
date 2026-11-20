@@ -140,9 +140,13 @@ def test_api_approve_validation_and_404():
     assert r.status_code == 404
 
 
-def test_api_approve_sends_dry_run_only(monkeypatch):
+def test_api_approve_sends_dry_run_only(monkeypatch, tmp_path):
     # Never sleep 5 minutes between sends in a test.
     monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 0)
+    # Isolated memory: the real sdr.db already holds sent iion mails, and
+    # the re-mail guard (409) must trip on those — this test is about the
+    # dry-run path, so it runs against an empty database instead.
+    monkeypatch.setattr("backend.app.memory.DB_PATH", str(tmp_path / "dry.db"))
     r = client.post("/approve", json={"company": "iion", "approve": True})
     assert r.status_code == 200
     sent = r.json()["sent"]

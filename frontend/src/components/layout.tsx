@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Users, Mail, MessageSquare, Reply,
-  Search, Sun, Moon, Zap, MessageCircle, Bell, ChevronRight,
+  Search, Sun, Moon, Zap, MessageCircle, Bell, ChevronRight, Compass,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '../lib/utils'
@@ -10,6 +10,7 @@ import { SEED_CAMPAIGNS } from '../lib/data'
 
 const NAV = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/discover', label: 'Discover', icon: Compass },
   { to: '/campaigns', label: 'Campaigns', icon: Building2 },
   { to: '/leads', label: 'Leads', icon: Users },
   { to: '/drafts', label: 'Draft mails', icon: Mail },

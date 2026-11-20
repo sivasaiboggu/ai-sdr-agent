@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
-  Building2, LayoutDashboard, Mail, MessageSquare, Moon, Reply, Search, Sun, Users,
+  Building2, LayoutDashboard, Mail, MessageSquare, Moon, Reply, Search, Sun, Users, Compass,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -40,6 +40,7 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
     }
     return [
       { id: 'nav-overview', label: 'Go to Overview', group: 'Navigate', icon: LayoutDashboard, run: go('/') },
+      { id: 'nav-discover', label: 'Go to Discover — boards & companies', group: 'Navigate', icon: Compass, run: go('/discover') },
       { id: 'nav-campaigns', label: 'Go to Campaigns', group: 'Navigate', icon: Building2, run: go('/campaigns') },
       { id: 'nav-leads', label: 'Go to Leads', group: 'Navigate', icon: Users, run: go('/leads') },
       { id: 'nav-drafts', label: 'Go to Draft mails', group: 'Navigate', icon: Mail, run: go('/drafts') },

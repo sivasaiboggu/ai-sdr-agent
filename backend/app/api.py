@@ -29,11 +29,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.app.config import settings
+from backend.app.boards import DO_NOT_MAIL, get_boards
 from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -158,6 +159,23 @@ async def chat_stream(req: ChatRequest):
 def approve(req: ApproveRequest):
     if not req.approve:
         return {"sent": [], "company": req.company, "detail": "Not approved — nothing sent."}
+    # Dedupe guard: never re-mail a company that already has sent mails.
+    # The check runs before the graph, so no draft is re-sent by accident.
+    try:
+        conn = mem.connect()
+        already = conn.execute(
+            "SELECT COUNT(*), MAX(sent_at) FROM mails WHERE lower(company) = lower(?) AND status = 'sent'",
+            (req.company.strip(),),
+        ).fetchone()
+        conn.close()
+    except Exception:
+        already = (0, None)
+    if already and already[0]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Already sent {already[0]} mail(s) to {req.company} — not re-mailing. "
+                   "Check Replies / Drafts before contacting them again.",
+        )
     try:
         # Re-run the graph with approval; sender respects the 5-min gap.
         result = run_campaign(req.company, approve=True, dry_run=False)
@@ -168,6 +186,45 @@ def approve(req: ApproveRequest):
     if not result.get("drafts"):
         raise HTTPException(status_code=404, detail=f"No drafts found for {req.company!r} — research it first, or no verified emails exist for it.")
     return {"sent": result.get("sent", []), "company": req.company}
+
+
+@router.get("/boards")
+def boards():
+    """The job boards the agent researches companies from. Never Internshala."""
+    return {"boards": get_boards()}
+
+
+@router.get("/coverage")
+def coverage():
+    """Companies already covered by this agent: researched, mailed, or sent.
+    The dashboard uses this to dedupe — a covered company is never
+    re-mailed or re-applied to without the user explicitly choosing to.
+    `do_not_mail` lists addresses that bounced before and must never be used."""
+    try:
+        conn = mem.connect()
+        companies = conn.execute("SELECT name, summary FROM companies").fetchall()
+        mails = conn.execute(
+            "SELECT company, COUNT(*), SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END), MAX(sent_at) "
+            "FROM mails GROUP BY company"
+        ).fetchall()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not read coverage: {e}")
+    mail_map = {m[0].lower(): {"mails": m[1], "sent": m[2] or 0, "last_sent_at": m[3]} for m in mails}
+    out = []
+    for name, summary in companies:
+        entry = {"name": name, "summary": summary or "", "mails": 0, "sent": 0, "last_sent_at": None}
+        entry.update(mail_map.get(name.lower(), {}))
+        entry["status"] = "sent" if entry["sent"] else ("mailed" if entry["mails"] else "researched")
+        out.append(entry)
+    # Companies with mails but no companies-row (e.g. seeded memory) still count.
+    known = {c["name"].lower() for c in out}
+    for company, counts in mail_map.items():
+        if company not in known:
+            out.append({"name": company, "summary": "", "mails": counts["mails"],
+                        "sent": counts["sent"], "last_sent_at": counts["last_sent_at"],
+                        "status": "sent" if counts["sent"] else "mailed"})
+    return {"companies": sorted(out, key=lambda c: c["name"].lower()), "do_not_mail": DO_NOT_MAIL}
 
 
 @router.get("/campaigns")

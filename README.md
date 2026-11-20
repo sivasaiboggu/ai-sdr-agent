@@ -220,6 +220,30 @@ starting the frontend. Note: these Dockerfiles were added without a
 Docker daemon available to build-test them — run the command once on a
 machine with Docker before relying on them.
 
+## v0.8 — what changed (20 Nov 2026)
+
+- **Discover page — all boards, all companies** — a unified view over the
+  8 boards the agent researches from (Built In, Wellfound, Shine, Jobfound,
+  Himalayas, Cutshort, HiringCafe, LinkedIn Jobs; Internshala is never
+  listed), each with its focus, best-for roles, honest sign-in status and
+  how to apply. New `GET /boards` serves the registry; the page falls back
+  to a bundled copy when the backend is offline and says so.
+- **Research any company, with dedupe** — the Discover research box checks
+  a name against `GET /coverage` (real memory: researched / mailed / sent)
+  plus the demo campaigns before anything is researched, and flags covered
+  companies and the do-not-mail list (bounced addresses). New companies go
+  straight into Agent chat. Research itself already worked for any company
+  via live web search with cited sources — no fixed company list.
+- **Never re-mail** — `POST /approve` now refuses with 409 when memory
+  already holds sent mails for that company, before the graph runs. The
+  dry-run default, 5-minute gap and quality gate are unchanged.
+- **Polish** — dashboard greeting follows the time of day; Discover is in
+  the sidebar and the ⌘K palette.
+- **Tests** — 45 tests (was 39): new `tests/test_boards.py` covers the
+  8-board registry (and that Internshala is absent), both new endpoints,
+  the coverage shape, and the approve guard blocking a re-mail while
+  allowing a first send.
+
 ## v0.7 — what changed (20 Nov 2026)
 
 - **Streaming chat** — new `POST /chat/stream` (SSE): the Agent Chat page
