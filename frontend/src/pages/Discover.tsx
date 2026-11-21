@@ -61,7 +61,16 @@ export default function Discover() {
     if (!name) return
     setCheckedName(name)
     const key = normalizeCompanyName(name)
-    const blocked = (coverage?.do_not_mail ?? []).find((d) => normalizeCompanyName(d.email.split('@')[1] ?? '') === key)
+    // Do-not-mail is keyed by email, so match on the mail domain: strip
+    // the TLD ("iion.io" -> "iion") and allow either side to contain the
+    // other ("eteaminc.com" must still catch a typed "eTeam"). The old
+    // comparison normalised the whole domain ("iionio") against the
+    // company name ("iion") and could never match.
+    const blocked = (coverage?.do_not_mail ?? []).find((d) => {
+      const domain = (d.email.split('@')[1] ?? '').replace(/\.[a-z]{2,}$/i, '')
+      const dom = normalizeCompanyName(domain)
+      return dom.length > 0 && key.length > 0 && (dom.includes(key) || key.includes(dom))
+    })
     if (blocked) { setCheck('blocked'); return }
     setCheck(covered.has(key) ? 'covered' : 'new')
   }

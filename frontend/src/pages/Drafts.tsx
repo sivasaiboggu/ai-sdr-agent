@@ -1,16 +1,28 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, Send } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, PenLine, Send } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import { approveCompany, SEED_DRAFTS, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
 export default function Drafts({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState<string | null>(SEED_DRAFTS[0]?.to ?? null)
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState<string | null>(null)
+
+  /** Rewriting goes through Agent chat — the old "Edit draft" button
+   * only showed a toast claiming an edit mode that did not exist.
+   * This queues a real rewrite request the agent runs on arrival. */
+  function rewriteInChat(d: Draft) {
+    try {
+      window.sessionStorage.setItem('sdr-pending-chat',
+        `Rewrite the draft mail for ${d.name} at ${d.company ?? 'this company'} — keep the hook from the research, tighten the wording, no new facts.`)
+    } catch { /* session storage unavailable — chat still opens */ }
+    navigate('/chat')
+  }
 
   async function approve(d: Draft) {
     if (sending) return
@@ -81,7 +93,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500"><Paperclip className="h-3.5 w-3.5" /> Sivasai_Boggu_Resume.pdf attached</span>
                         <span className="ml-auto flex gap-2">
-                          <Button variant="ghost" onClick={() => onToast('Edit mode — change the hook or proof, then approve again.')}>Edit draft</Button>
+                          <Button variant="ghost" onClick={() => rewriteInChat(d)}><PenLine className="h-3.5 w-3.5" /> Rewrite in chat</Button>
                           <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved || sending === d.to} onClick={() => approve(d)}>
                             {sending === d.to ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isApproved ? 'Approved ✓' : sending === d.to ? 'Approving…' : 'Approve & send'}
                           </Button>

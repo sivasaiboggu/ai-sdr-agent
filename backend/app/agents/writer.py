@@ -28,13 +28,14 @@ SUBJECTS = {
 
 def _gemini_draft(prompt: str) -> str | None:
     try:
-        import os, google.generativeai as genai
+        import os
+        from google import genai
         key = os.getenv("GEMINI_API_KEY")
         if not key:
             return None
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        return model.generate_content(prompt).text.strip()
+        client = genai.Client(api_key=key)
+        resp = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        return (resp.text or "").strip() or None
     except Exception:
         return None
 

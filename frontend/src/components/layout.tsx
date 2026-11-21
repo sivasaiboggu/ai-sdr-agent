@@ -1,12 +1,27 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Users, Mail, MessageSquare, Reply,
-  Search, Sun, Moon, Zap, MessageCircle, Bell, ChevronRight, Compass,
+  Search, Sun, Moon, Zap, MessageCircle, ChevronRight, Compass,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '../lib/utils'
-import { SEED_CAMPAIGNS } from '../lib/data'
+import { SEED_CAMPAIGNS, fetchHealth, type Health } from '../lib/data'
+
+/** Backend /health, polled once a minute. `undefined` = not checked yet,
+ * `null` = unreachable. Status pills read this instead of assuming the
+ * backend is live — the dashboard shows seeded demo data until it is. */
+function useBackendHealth() {
+  const [health, setHealth] = useState<Health | null | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    const check = () => fetchHealth().then((h) => { if (alive) setHealth(h) })
+    check()
+    const t = window.setInterval(check, 60_000)
+    return () => { alive = false; window.clearInterval(t) }
+  }, [])
+  return health
+}
 
 const NAV = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -19,6 +34,8 @@ const NAV = [
 ]
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const health = useBackendHealth()
+  const live = health !== undefined && health !== null
   return (
     <>
       {open && <div className="fixed inset-0 z-30 bg-zinc-950/40 backdrop-blur-sm lg:hidden" onClick={onClose} />}
@@ -32,9 +49,20 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <p className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
             <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">AI Sales Development</p>
           </div>
-          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400">
-            <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" /></span>
-            LIVE
+          {/* Honest backend state: "Live" only when /health actually
+              answers — otherwise the dashboard is showing seeded demo
+              data, and the badge says Demo. */}
+          <span title={live ? 'Backend reachable — live data' : 'Backend unreachable — showing seeded demo data'}
+            className={cn(
+              'ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+              live
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400'
+                : 'bg-zinc-100 text-zinc-500 ring-zinc-600/20 dark:bg-zinc-800 dark:text-zinc-400',
+            )}>
+            {live && (
+              <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" /></span>
+            )}
+            {live ? 'LIVE' : 'DEMO'}
           </span>
         </div>
 
@@ -91,6 +119,7 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
   dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; onOpenPalette: () => void; query: string; onQuery: (v: string) => void
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
+  const health = useBackendHealth()
   // "/" focuses the search box; ⌘K now opens the command palette (App owns it).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -119,13 +148,29 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
             className="pointer-events-auto absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700 dark:bg-zinc-800 md:block">⌘K</button>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 md:inline-flex">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Gmail connected
+          {/* Gmail state from /health — never claimed when the backend is
+              unreachable or no app password is configured. There is no
+              notifications system, so no bell: the old one showed a fake
+              unread dot and did nothing when clicked. */}
+          <span className={cn(
+            'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium md:inline-flex',
+            health && health.gmail_configured && health.gmail_send_enabled
+              ? 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400'
+              : 'border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300',
+          )}>
+            <span className={cn(
+              'h-2 w-2 rounded-full',
+              health === undefined ? 'bg-zinc-400'
+                : !health ? 'bg-amber-500'
+                : health.gmail_configured && health.gmail_send_enabled ? 'bg-emerald-500'
+                : 'bg-zinc-400',
+            )} />
+            {health === undefined ? 'Checking backend…'
+              : !health ? 'Backend offline'
+              : health.gmail_configured && health.gmail_send_enabled ? 'Gmail sending on'
+              : health.gmail_configured ? 'Gmail dry-run'
+              : 'Gmail not set up'}
           </span>
-          <button className="btn-ghost relative !px-2.5" aria-label="Notifications">
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-zinc-950" />
-          </button>
           <button onClick={onToggleTheme} className="btn-ghost !px-2.5" aria-label="Toggle theme">
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>

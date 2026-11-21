@@ -34,7 +34,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.9.1"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -73,6 +73,8 @@ def health():
         "version": APP_VERSION,
         "database": settings.database_kind,
         "gmail_send_enabled": settings.gmail_send_enabled,
+        # Boolean only — the app password itself never leaves the server.
+        "gmail_configured": bool(settings.gmail_app_password),
         "gemini_configured": settings.has_gemini,
         "apollo_configured": settings.has_apollo,
     }

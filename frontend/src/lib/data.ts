@@ -252,6 +252,36 @@ export async function checkHealth(timeoutMs = 5000): Promise<boolean> {
   }
 }
 
+export type Health = {
+  status: string
+  version: string
+  database: 'sqlite' | 'postgres'
+  gmail_send_enabled: boolean
+  gmail_configured: boolean
+  gemini_configured: boolean
+  apollo_configured: boolean
+}
+
+/** Full /health payload, or null when the backend is unreachable.
+ * The sidebar and topbar read this so their status pills describe the
+ * real backend instead of claiming "Live" / "Gmail connected" while
+ * the dashboard is running on seeded demo data. */
+export async function fetchHealth(timeoutMs = 5000): Promise<Health | null> {
+  try {
+    const ctrl = new AbortController()
+    const t = window.setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+      const r = await fetch(apiUrl('/health'), { signal: ctrl.signal })
+      if (!r.ok) return null
+      return (await r.json()) as Health
+    } finally {
+      window.clearTimeout(t)
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function fetchCampaigns(): Promise<CampaignsResponse | null> {
   try {
     const r = await fetch(apiUrl('/campaigns'))

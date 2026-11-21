@@ -21,6 +21,11 @@ def test_health_and_api_health():
         assert body["database"] in ("sqlite", "postgres")
         # Health must not leak secrets or keys.
         assert "key" not in str(body).lower()
+        assert "password" not in str(body).lower()
+        # The dashboard's Gmail pill reads this boolean — it must be a
+        # plain bool, never the credential itself.
+        assert isinstance(body["gmail_configured"], bool)
+        assert isinstance(body["gmail_send_enabled"], bool)
 
 
 def test_api_prefix_mirrors_bare_routes():

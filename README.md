@@ -33,7 +33,7 @@ sends with a 5-minute gap, tracks replies, and remembers everything.
    people, mails and replies. Hooks/subjects that got a reply are recorded
    and reused.
 7. **Dashboard** — React + TypeScript + Vite, companies / leads / mails /
-   replies, live agent progress via WebSockets.
+   replies, live agent progress via SSE (`POST /chat/stream`).
 8. **WhatsApp bot** — chat with the agent on WhatsApp, free Cloud API /
    Twilio sandbox. Same agent, same approval gate: reply YES to send.
 
@@ -124,7 +124,7 @@ FastAPI  ──>  LangGraph state machine
                   └────────────┴───────────┴────── SQLite / Postgres ─────┘
   |
   v
-React dashboard (Vite) — live progress via WebSocket
+React dashboard (Vite) — live progress via SSE
 ```
 
 ## Quick start
@@ -165,9 +165,10 @@ back to seeded demo data when the API is not running.
 Run tests:
 
 ```bash
-pytest tests/ -q   # 29 tests: writer quality gate, lead scoring, sender
+pytest tests/ -q   # 52 tests: writer quality gate, lead scoring, sender
                    # guard, approval flow, WhatsApp handler, API validation,
-                   # /api prefix parity, CORS preflight
+                   # /api prefix parity, CORS preflight, Gemini SDK path,
+                   # Postgres translation + live round-trip, boards registry
 ```
 
 ## Deployment
@@ -222,6 +223,39 @@ Compose builds both images (see `backend/Dockerfile`,
 starting the frontend. Both Dockerfiles are build-tested (v0.9); a
 `.dockerignore` keeps venvs, `node_modules`, local `.db` files and `.env`
 out of the build context.
+
+## v0.9.1 — what changed (21 Nov 2026)
+
+- **Gemini SDK migrated** — `google-generativeai` is end-of-life (it now
+  warns on every import), so the Writer's optional polish moved to the
+  `google-genai` SDK (`backend/requirements.txt`), model
+  `gemini-2.0-flash`. Same behaviour: polish only tightens wording, the
+  template writer and quality gate are unchanged, and a failed polish
+  still falls back silently. 3 new tests cover the client call, the
+  no-key case and the failure fallback; the deprecation warning is gone.
+- **Honest status pills** — the sidebar claimed LIVE and the topbar
+  claimed "Gmail connected" while the dashboard was showing seeded demo
+  data. Both now read `GET /health` (new `gmail_configured` boolean —
+  the app password itself never leaves the server): Live/Demo badge,
+  and Gmail sending on / dry-run / not set up / backend offline. The
+  bell with its fake unread dot is gone — there is no notifications
+  system; it did nothing when clicked.
+- **Two interaction bugs fixed** — Drafts' "Edit draft" button only
+  showed a toast claiming an edit mode that did not exist; it now queues
+  a real rewrite in Agent chat. Discover's do-not-mail check normalised
+  `iion.io` to `iionio` and could never match a company name, so a
+  bounced company was never flagged; it now matches on the domain minus
+  TLD, either side containing the other.
+- **Dependencies** — autoprefixer 10.6.2 → 10.7.0, the only safe
+  minor/patch available. React 19, Tailwind 4, Vite 8, framer-motion 14,
+  recharts 3, react-router 7 and TypeScript 7 are all major bumps and
+  were deliberately left alone.
+- **README** — test count corrected (29 → 52), the config table fixed
+  (a blockquote had split it and orphaned the `RESUME_PATH` row), and
+  the dashboard bullet corrected: live progress is SSE
+  (`/chat/stream`), not WebSockets — the `/ws` endpoint is only a
+  connect handshake.
+- **Tests** — 52 passed, 2 skipped (was 49 passed).
 
 ## v0.9 — what changed (21 Nov 2026)
 
@@ -369,10 +403,10 @@ docker compose up --build
 | `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (default `http://localhost:5173,http://localhost:3000`). Add the deployed frontend origin. |
 | `PORT` | Port the API listens on (`8000` locally; hosts like Render set it). |
 | `VITE_API_URL` | Frontend only (`frontend/.env.example`): deployed backend origin, e.g. `https://ai-sdr-agent-api.onrender.com`. Unset = relative `/api/*` (dev proxy only). |
+| `RESUME_PATH` | PDF attached to every mail. |
 
 > Postgres note: since v0.9, a Postgres `DATABASE_URL` switches storage
 > to Postgres (see Deployment); SQLite remains the default.
-| `RESUME_PATH` | PDF attached to every mail. |
 
 ## Demo flow
 
