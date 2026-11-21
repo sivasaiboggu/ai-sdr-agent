@@ -93,15 +93,15 @@ export default function Discover() {
           { label: 'Companies covered', value: coverageLoaded ? String(covered.size) : '…', sub: 'Researched, mailed or sent' },
           { label: 'Mails sent', value: coverageLoaded ? String(sentTotal) : '…', sub: 'Real sends logged in memory' },
         ].map((s, i) => (
-          <Card key={s.label} className={`rise rise-${i + 1} p-4 text-center`}>
-            <p className="tabular text-2xl font-bold text-zinc-900 dark:text-white">{s.value}</p>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{s.label}</p>
-            <p className="mt-0.5 text-[11px] text-zinc-400">{s.sub}</p>
+          <Card key={s.label} className={`rise rise-${i + 1} p-5 text-center`}>
+            <p className="tabular text-[28px] font-bold leading-none tracking-tight text-zinc-900 dark:text-white">{s.value}</p>
+            <p className="eyebrow mt-2">{s.label}</p>
+            <p className="mt-1 text-[11px] text-zinc-400">{s.sub}</p>
           </Card>
         ))}
       </div>
 
-      <Card className="mb-5 p-5">
+      <Card className="mb-5 p-6">
         <h3 className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
           <Search className="h-4 w-4 text-brand-500" /> Research any company
         </h3>
@@ -157,15 +157,15 @@ export default function Discover() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {boards.map((b) => (
           <button key={b.id} onClick={() => setSelected(b)} aria-pressed={selected?.id === b.id}
-            className={cn('card p-5 text-left transition-shadow hover:shadow-pop',
+            className={cn('card card-hover p-5 text-left',
               selected?.id === b.id && 'ring-2 ring-brand-500 dark:ring-brand-400')}>
             <div className="flex items-start justify-between gap-2">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-xs font-bold text-white shadow-sm ring-1 ring-white/10 dark:bg-white dark:text-zinc-900 dark:ring-zinc-900/10">
                 {b.name.slice(0, 2).toUpperCase()}
               </span>
               <Badge tone={SIGNIN_BADGE[b.signin].tone}>{SIGNIN_BADGE[b.signin].label}</Badge>
             </div>
-            <p className="mt-3 text-base font-bold text-zinc-900 dark:text-white">{b.name}</p>
+            <p className="mt-3 text-base font-bold tracking-tight text-zinc-900 dark:text-white">{b.name}</p>
             <p className="mt-0.5 text-sm leading-relaxed text-zinc-500">{b.focus}</p>
             <p className="mt-2 text-xs leading-relaxed text-zinc-400"><span className="font-semibold text-zinc-500">Best for:</span> {b.best_for}</p>
           </button>
@@ -175,10 +175,10 @@ export default function Discover() {
       <AnimatePresence>
         {selected && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key={selected.id}>
-            <Card className="mt-4 p-5">
+            <Card className="mt-4 p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="flex items-center gap-2 text-base font-bold text-zinc-900 dark:text-white">
+                  <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-900 dark:text-white">
                     <Building2 className="h-4 w-4 text-brand-500" /> {selected.name}
                   </h3>
                   <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{selected.focus} — {selected.best_for}.</p>
@@ -188,13 +188,13 @@ export default function Discover() {
                 </a>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl bg-zinc-50 p-3.5 dark:bg-zinc-800/60">
+                <div className="rounded-xl bg-zinc-50/80 p-3.5 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:ring-zinc-800">
                   <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-zinc-400"><ShieldCheck className="h-3.5 w-3.5" /> Sign-in status</p>
-                  <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-200">{selected.signin_note}</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">{selected.signin_note}</p>
                 </div>
-                <div className="rounded-xl bg-zinc-50 p-3.5 dark:bg-zinc-800/60">
+                <div className="rounded-xl bg-zinc-50/80 p-3.5 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:ring-zinc-800">
                   <p className="text-xs font-bold uppercase tracking-wide text-zinc-400">How to apply</p>
-                  <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-200">{selected.apply_note}</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">{selected.apply_note}</p>
                 </div>
               </div>
               <p className="mt-3 flex items-center gap-1.5 text-xs text-zinc-400">
@@ -206,12 +206,12 @@ export default function Discover() {
       </AnimatePresence>
 
       {coverage && coverage.do_not_mail.length > 0 && (
-        <Card className="mt-5 p-5">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white"><Ban className="h-4 w-4 text-rose-500" /> Do not mail — bounced before</h3>
-          <ul className="mt-2 space-y-1.5">
+        <Card className="mt-5 p-6">
+          <h3 className="flex items-center gap-2 text-sm font-bold tracking-tight text-zinc-900 dark:text-white"><Ban className="h-4 w-4 text-rose-500" /> Do not mail — bounced before</h3>
+          <ul className="mt-3 divide-y divide-zinc-100/80 dark:divide-zinc-800/70">
             {coverage.do_not_mail.map((d) => (
-              <li key={d.email} className="flex flex-wrap items-baseline gap-2 text-sm">
-                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-200">{d.email}</span>
+              <li key={d.email} className="flex flex-wrap items-baseline gap-2 py-2 text-sm first:pt-0 last:pb-0">
+                <span className="font-mono text-xs font-medium text-zinc-700 dark:text-zinc-200">{d.email}</span>
                 <span className="text-xs text-zinc-400">{d.reason}</span>
               </li>
             ))}

@@ -38,12 +38,10 @@ def run_campaign(company: str, approve: bool = True, dry_run: bool = True) -> di
         g.add_node("research", research.run)
         g.add_node("people", people.run)
         g.add_node("writer", writer.run)
-        g.add_node("tracker", tracker.run)
         g.add_edge("research", "people")
         g.add_edge("people", "writer")
-        g.add_edge("writer", "tracker")
         g.set_entry_point("research")
-        g.add_edge("tracker", END)
+        g.add_edge("writer", END)
         app = g.compile()
         state = app.invoke({"company": company})
     except ImportError:
@@ -56,9 +54,14 @@ def run_campaign(company: str, approve: bool = True, dry_run: bool = True) -> di
         return _defaults(state)
     # Human approval gate lives outside the graph in Phase 1 (API/CLI):
     # drafts are returned for approval; sender runs only if approve=True.
+    # The tracker is NOT a graph node: it used to run inside the graph
+    # (before approval, over replies that cannot exist yet) and then
+    # again after the sender — classifying the same replies twice and
+    # recording duplicate learnings. It runs once, after the sender,
+    # in both the graph and the sequential path.
     if approve and state.get("drafts"):
         state = sender.send_drafts(state, dry_run=dry_run)
-        state = tracker.run(state)
+    state = tracker.run(state)
     return _defaults(state)
 
 def _defaults(state: dict) -> dict:

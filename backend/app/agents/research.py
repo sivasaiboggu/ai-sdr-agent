@@ -8,7 +8,9 @@ def run(state: dict) -> dict:
     company = state["company"]
     profile = search_company(company)
     conn = mem.connect()
-    mem.save_company(conn, profile["name"], profile.get("domain", ""),
-                     profile["summary"], profile["sources"])
-    conn.close()
+    try:
+        mem.save_company(conn, profile["name"], profile.get("domain", ""),
+                         profile["summary"], profile["sources"])
+    finally:
+        conn.close()
     return {**state, "profile": profile}

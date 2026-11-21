@@ -93,6 +93,44 @@ def test_sender_blocks_bad_draft_and_dry_runs_good_one():
     assert result["sent"][1]["message_id"].startswith("dry-run-")
 
 
+def test_sender_gap_survives_blocked_draft_between_sends(monkeypatch, tmp_path):
+    """Regression: the 5-minute gap used to be checked against the previous
+    draft's status, so a blocked draft between two real sends reset it and
+    the second mail went out immediately. The gap is between real sends."""
+    from backend.app.agents import sender as sender_mod
+    from backend.app import memory as mem
+
+    monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 10)
+    monkeypatch.setattr("backend.app.config.settings.gmail_send_enabled", True)
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "gap.db"))
+    monkeypatch.setattr(sender_mod.gmail_mod, "send_mail", lambda *a, **k: "<test-id@sdr-agent.local>")
+    sleeps: list[float] = []
+    monkeypatch.setattr(sender_mod.time, "sleep", lambda s: sleeps.append(s))
+    # Clock frozen: the whole batch happens at the same instant, so the
+    # full gap must be slept before the second real send.
+    monkeypatch.setattr(sender_mod.time, "monotonic", lambda: 1000.0)
+
+    bad = {**GOOD, "body": GOOD["body"] + " [fix me]"}
+    second = {**GOOD, "to": "sanjaya@iion.io", "name": "Sanjaya Molligoda"}
+    result = send_drafts({"company": "iion", "drafts": [GOOD, bad, second]}, dry_run=False)
+    assert [s["status"] for s in result["sent"]] == ["sent", "blocked: body still contains a bracket or placeholder (e.g. [name], TODO)", "sent"]
+    assert sleeps == [10], f"expected one full-gap sleep before the second real send, got {sleeps}"
+
+
+def test_sender_dry_run_never_sleeps(monkeypatch, tmp_path):
+    """Dry-runs send nothing, so the gap must not slow them down."""
+    from backend.app.agents import sender as sender_mod
+    from backend.app import memory as mem
+
+    monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 300)
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "dry.db"))
+    sleeps: list[float] = []
+    monkeypatch.setattr(sender_mod.time, "sleep", lambda s: sleeps.append(s))
+    result = send_drafts({"company": "iion", "drafts": [GOOD, GOOD]}, dry_run=True)
+    assert all(s["status"] == "draft (dry-run)" for s in result["sent"])
+    assert sleeps == []
+
+
 def test_graph_rejects_empty_company():
     try:
         run_campaign("")

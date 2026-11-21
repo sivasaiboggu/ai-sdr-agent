@@ -10,8 +10,10 @@ import { SEED_CAMPAIGNS, fetchHealth, type Health } from '../lib/data'
 
 /** Backend /health, polled once a minute. `undefined` = not checked yet,
  * `null` = unreachable. Status pills read this instead of assuming the
- * backend is live — the dashboard shows seeded demo data until it is. */
-function useBackendHealth() {
+ * backend is live — the dashboard shows seeded demo data until it is.
+ * App calls this hook once and passes the result down: Sidebar and
+ * Topbar used to poll separately, doubling /health traffic. */
+export function useBackendHealth() {
   const [health, setHealth] = useState<Health | null | undefined>(undefined)
   useEffect(() => {
     let alive = true
@@ -33,18 +35,17 @@ const NAV = [
   { to: '/chat', label: 'Agent chat', icon: MessageSquare },
 ]
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const health = useBackendHealth()
+export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () => void; health: Health | null | undefined }) {
   const live = health !== undefined && health !== null
   return (
     <>
       {open && <div className="fixed inset-0 z-30 bg-zinc-950/40 backdrop-blur-sm lg:hidden" onClick={onClose} />}
       <aside className={cn(
-        'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200 bg-white transition-transform duration-300 dark:border-zinc-800 dark:bg-zinc-900 lg:translate-x-0',
+        'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200/70 bg-white/85 backdrop-blur-xl transition-transform duration-300 dark:border-zinc-800/70 dark:bg-zinc-900/85 lg:translate-x-0',
         open ? 'translate-x-0' : '-translate-x-full',
       )}>
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-base font-bold text-white shadow-md shadow-brand-500/25">S</div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-base font-bold text-white shadow-md shadow-brand-500/30 ring-1 ring-white/20">S</div>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
             <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">AI Sales Development</p>
@@ -54,7 +55,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               data, and the badge says Demo. */}
           <span title={live ? 'Backend reachable — live data' : 'Backend unreachable — showing seeded demo data'}
             className={cn(
-              'ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+              'ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset',
               live
                 ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400'
                 : 'bg-zinc-100 text-zinc-500 ring-zinc-600/20 dark:bg-zinc-800 dark:text-zinc-400',
@@ -70,10 +71,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} onClick={onClose}
               className={({ isActive }) => cn(
-                'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
                 isActive
                   ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900'
-                  : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
+                  : 'text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-100',
               )}>
               <Icon className="h-4 w-4 shrink-0" />
               {label}
@@ -81,29 +82,29 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             </NavLink>
           ))}
 
-          <p className="px-3 pb-1 pt-6 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Active campaigns</p>
+          <p className="eyebrow px-3 pb-1 pt-6">Active campaigns</p>
           {SEED_CAMPAIGNS.map((c) => (
             <NavLink key={c.name} to="/campaigns" onClick={onClose}
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-100 text-[10px] font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100/80 dark:text-zinc-400 dark:hover:bg-zinc-800/70">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-100 text-[10px] font-bold text-zinc-600 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700/60">
                 {c.name.slice(0, 2).toUpperCase()}
               </span>
               <span className="truncate">{c.name}</span>
-              <span className="ml-auto text-xs font-semibold text-zinc-400">{c.leads} leads</span>
+              <span className="tabular ml-auto text-xs font-semibold text-zinc-400">{c.leads} leads</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="border-t border-zinc-100 p-4 dark:border-zinc-800">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="border-t border-zinc-100/80 p-4 dark:border-zinc-800/80">
+          <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 text-white shadow-soft ring-1 ring-white/10 dark:from-zinc-800 dark:to-zinc-800/70 dark:ring-white/5">
             <div className="flex items-center gap-2 text-sm font-semibold"><span className="h-2 w-2 rounded-full bg-emerald-400" /><Zap className="h-4 w-4 text-emerald-400" /> WhatsApp bot</div>
             <p className="mt-1 text-xs leading-relaxed text-zinc-400">Chat with the agent on WhatsApp — research, draft, approve with a YES.</p>
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-200">
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-200 ring-1 ring-inset ring-white/10">
               <MessageCircle className="h-3 w-3" /> Free Cloud API
             </div>
           </div>
           <div className="mt-4 flex items-center gap-3 px-1">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">SB</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white ring-2 ring-white dark:bg-white dark:text-zinc-900 dark:ring-zinc-900">SB</span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">Sivasai Boggu</p>
               <p className="truncate text-xs text-zinc-500">IIIT Kottayam · BTech CS ’27</p>
@@ -115,11 +116,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   )
 }
 
-export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, query, onQuery }: {
-  dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; onOpenPalette: () => void; query: string; onQuery: (v: string) => void
+export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, query, onQuery, health }: {
+  dark: boolean; onToggleTheme: () => void; onOpenSidebar: () => void; onOpenPalette: () => void; query: string; onQuery: (v: string) => void; health: Health | null | undefined
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
-  const health = useBackendHealth()
   // "/" focuses the search box; ⌘K now opens the command palette (App owns it).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -135,7 +135,7 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
   }, [])
   return (
     <motion.header initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-      className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/80 backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-950/80">
+      className="sticky top-0 z-20 border-b border-zinc-200/70 bg-white/75 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/75">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
         <button onClick={onOpenSidebar} className="btn-ghost !px-2.5 lg:hidden" aria-label="Open menu">
           <LayoutDashboard className="h-4 w-4" />
@@ -143,17 +143,17 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
         <div className="relative hidden w-full max-w-md sm:block">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input ref={searchRef} value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search companies, leads, mails…  ( / to focus )"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-10 pr-4 text-sm outline-none transition placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:bg-zinc-900" />
+            className="w-full rounded-xl border border-zinc-200/80 bg-zinc-50/80 py-2.5 pl-10 pr-16 text-sm shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-zinc-700/80 dark:bg-zinc-900 dark:focus:bg-zinc-900" />
           <button onClick={onOpenPalette} aria-label="Open command palette"
-            className="pointer-events-auto absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700 dark:bg-zinc-800 md:block">⌘K</button>
+            className="kbd pointer-events-auto absolute right-3 top-1/2 hidden -translate-y-1/2 transition hover:border-brand-300 hover:text-brand-600 md:block">⌘K</button>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {/* Gmail state from /health — never claimed when the backend is
               unreachable or no app password is configured. There is no
               notifications system, so no bell: the old one showed a fake
               unread dot and did nothing when clicked. */}
-          <span className={cn(
-            'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium md:inline-flex',
+          <span title={health ? `Backend ${health.database} · Gemini ${health.gemini_configured ? 'on' : 'off'} · Apollo ${health.apollo_configured ? 'on' : 'off'}` : undefined} className={cn(
+            'hidden items-center gap-2 rounded-full border bg-white/60 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur md:inline-flex dark:bg-zinc-900/60',
             health && health.gmail_configured && health.gmail_send_enabled
               ? 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400'
               : 'border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300',

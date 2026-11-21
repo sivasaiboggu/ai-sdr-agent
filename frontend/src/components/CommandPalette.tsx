@@ -95,15 +95,15 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
           onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
           <motion.div initial={{ opacity: 0, y: -12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-pop ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700"
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white/95 shadow-pop ring-1 ring-zinc-200/70 backdrop-blur-xl dark:bg-zinc-900/95 dark:ring-zinc-700/70"
             onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3.5 dark:border-zinc-800">
+            <div className="flex items-center gap-3 border-b border-zinc-100/80 px-4 py-3.5 dark:border-zinc-800/80">
               <Search className="h-4 w-4 shrink-0 text-zinc-400" />
               <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder="Type a command or search…"
                 className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
                 aria-label="Search commands" />
-              <kbd className="shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800">ESC</kbd>
+              <kbd className="kbd shrink-0">ESC</kbd>
             </div>
             <div ref={listRef} className="max-h-[320px] overflow-y-auto p-2">
               {filtered.length === 0 && (
@@ -114,10 +114,10 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
                 lastGroup = a.group
                 return (
                   <div key={a.id}>
-                    {groupHeader && <p className="px-3 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-zinc-400 first:pt-1">{a.group}</p>}
+                    {groupHeader && <p className="eyebrow px-3 pb-1 pt-3 first:pt-1">{a.group}</p>}
                     <button data-idx={i} onMouseEnter={() => setActive(i)} onClick={a.run}
                       className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition',
-                        i === active ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800')}>
+                        i === active ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900' : 'text-zinc-700 hover:bg-zinc-100/80 dark:text-zinc-200 dark:hover:bg-zinc-800/70')}>
                       <a.icon className="h-4 w-4 shrink-0 opacity-70" />
                       <span className="truncate font-medium">{a.label}</span>
                       {i === active && <kbd className="ml-auto rounded border border-white/30 px-1.5 py-0.5 text-[10px] font-semibold opacity-70">↵</kbd>}
@@ -126,10 +126,10 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
                 )
               })}
             </div>
-            <div className="flex items-center gap-4 border-t border-zinc-100 px-4 py-2.5 text-[11px] text-zinc-400 dark:border-zinc-800">
-              <span><kbd className="rounded border border-zinc-200 px-1 dark:border-zinc-700">↑↓</kbd> navigate</span>
-              <span><kbd className="rounded border border-zinc-200 px-1 dark:border-zinc-700">↵</kbd> run</span>
-              <span><kbd className="rounded border border-zinc-200 px-1 dark:border-zinc-700">esc</kbd> close</span>
+            <div className="flex items-center gap-4 border-t border-zinc-100/80 px-4 py-2.5 text-[11px] text-zinc-400 dark:border-zinc-800/80">
+              <span><kbd className="kbd">↑↓</kbd> navigate</span>
+              <span><kbd className="kbd">↵</kbd> run</span>
+              <span><kbd className="kbd">esc</kbd> close</span>
             </div>
           </motion.div>
         </motion.div>

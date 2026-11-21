@@ -230,14 +230,17 @@ def _connect_postgres(url):
 
 def connect(db_path: str | None = None):
     # An explicit path is always a SQLite file (tests use scratch DBs).
+    # timeout=30: the API serves requests from a thread pool and several
+    # can write at once; the 5s default turned a busy moment into a
+    # "database is locked" error instead of waiting briefly.
     if db_path is not None:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=30)
         conn.executescript(SCHEMA)
         return conn
     url = postgres_url()
     if url:
         return _connect_postgres(url)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.executescript(SCHEMA)
     return conn
 

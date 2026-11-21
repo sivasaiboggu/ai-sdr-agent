@@ -34,7 +34,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.9.1"
+APP_VERSION = "0.9.2"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -165,11 +165,13 @@ def approve(req: ApproveRequest):
     # The check runs before the graph, so no draft is re-sent by accident.
     try:
         conn = mem.connect()
-        already = conn.execute(
-            "SELECT COUNT(*), MAX(sent_at) FROM mails WHERE lower(company) = lower(?) AND status = 'sent'",
-            (req.company.strip(),),
-        ).fetchone()
-        conn.close()
+        try:
+            already = conn.execute(
+                "SELECT COUNT(*), MAX(sent_at) FROM mails WHERE lower(company) = lower(?) AND status = 'sent'",
+                (req.company.strip(),),
+            ).fetchone()
+        finally:
+            conn.close()
     except Exception:
         already = (0, None)
     if already and already[0]:
@@ -204,12 +206,14 @@ def coverage():
     `do_not_mail` lists addresses that bounced before and must never be used."""
     try:
         conn = mem.connect()
-        companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-        mails = conn.execute(
-            "SELECT company, COUNT(*), SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END), MAX(sent_at) "
-            "FROM mails GROUP BY company"
-        ).fetchall()
-        conn.close()
+        try:
+            companies = conn.execute("SELECT name, summary FROM companies").fetchall()
+            mails = conn.execute(
+                "SELECT company, COUNT(*), SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END), MAX(sent_at) "
+                "FROM mails GROUP BY company"
+            ).fetchall()
+        finally:
+            conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read coverage: {e}")
     mail_map = {m[0].lower(): {"mails": m[1], "sent": m[2] or 0, "last_sent_at": m[3]} for m in mails}
@@ -233,9 +237,11 @@ def coverage():
 def campaigns():
     try:
         conn = mem.connect()
-        companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-        mails = conn.execute("SELECT company, recipient, email, subject, status FROM mails ORDER BY id DESC LIMIT 50").fetchall()
-        conn.close()
+        try:
+            companies = conn.execute("SELECT name, summary FROM companies").fetchall()
+            mails = conn.execute("SELECT company, recipient, email, subject, status FROM mails ORDER BY id DESC LIMIT 50").fetchall()
+        finally:
+            conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read campaign memory: {e}")
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],

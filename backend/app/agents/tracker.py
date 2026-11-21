@@ -25,10 +25,18 @@ def run(state: dict) -> dict:
     # In Phase 1 the tracker runs over replies supplied in state["replies"].
     results = []
     conn = mem.connect()
-    for r in state.get("replies", []):
-        cls = classify_reply(r.get("text", ""))
-        results.append({"from": r.get("from", ""), "class": cls, "follow_up_in_days": follow_up_due_days(cls)})
-        if cls == "interested":
-            mem.record_learning(conn, "hook", r.get("hook", "personalised research hook"), "interested reply")
-    conn.close()
+    try:
+        for r in state.get("replies", []):
+            cls = classify_reply(r.get("text", ""))
+            results.append({"from": r.get("from", ""), "class": cls, "follow_up_in_days": follow_up_due_days(cls)})
+            # Only record a learning when the reply actually carries the
+            # hook that worked. The old fallback recorded the literal
+            # placeholder "personalised research hook" as a learning for
+            # every interested reply without one — a fake fact the writer
+            # would then "reuse".
+            hook = (r.get("hook") or "").strip()
+            if cls == "interested" and hook:
+                mem.record_learning(conn, "hook", hook, "interested reply")
+    finally:
+        conn.close()
     return {**state, "reply_classes": results}

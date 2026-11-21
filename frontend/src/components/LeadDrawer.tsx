@@ -56,12 +56,12 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-sm" onClick={onClose} />
           <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col overflow-y-auto bg-white shadow-pop dark:bg-zinc-900 sm:max-w-md"
+            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col overflow-y-auto border-l border-zinc-200/70 bg-white/95 shadow-pop backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-900/95 sm:max-w-md"
             role="dialog" aria-modal="true" aria-label={`Lead details for ${person.name}`}>
-            <div className="flex items-start gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
+            <div className="flex items-start gap-3 border-b border-zinc-100/80 px-6 py-5 dark:border-zinc-800/80">
               <Avatar name={person.name} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-bold text-zinc-900 dark:text-white">{person.name}</p>
+                <p className="truncate text-base font-bold tracking-tight text-zinc-900 dark:text-white">{person.name}</p>
                 <p className="truncate text-sm text-zinc-500">{person.title}</p>
                 <p className="truncate text-sm font-medium text-zinc-600 dark:text-zinc-300">{person.company}</p>
               </div>
@@ -70,14 +70,14 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
               </button>
             </div>
 
-            <div className="space-y-6 p-5">
+            <div className="space-y-7 p-6">
               <section>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Lead score</h3>
-                <div className="mt-2 flex items-center gap-3">
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <h3 className="eyebrow">Lead score</h3>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-inset ring-black/5 dark:bg-zinc-800 dark:ring-white/5">
                     <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${person.score}%` }} />
                   </div>
-                  <span className="text-lg font-bold text-zinc-900 dark:text-white">{person.score}</span>
+                  <span className="tabular text-lg font-bold leading-none text-zinc-900 dark:text-white">{person.score}</span>
                 </div>
                 <ul className="mt-3 space-y-1.5 text-sm text-zinc-600 dark:text-zinc-300">
                   <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />{roleTier(person.title)}</li>
@@ -90,10 +90,10 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
               </section>
 
               <section>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Contact</h3>
-                <div className="mt-2 space-y-2">
+                <h3 className="eyebrow">Contact</h3>
+                <div className="mt-3 space-y-2">
                   {person.email ? (
-                    <div className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2.5 dark:border-zinc-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900">
                       <Mail className="h-4 w-4 shrink-0 text-zinc-400" />
                       <span className="min-w-0 flex-1 truncate font-mono text-sm text-zinc-800 dark:text-zinc-100">{person.email}</span>
                       <button onClick={copyEmail} className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">
@@ -101,11 +101,11 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
                       </button>
                     </div>
                   ) : (
-                    <p className="rounded-xl bg-zinc-50 px-3 py-2.5 text-sm text-zinc-500 dark:bg-zinc-800">No verified email on file for this person.</p>
+                    <p className="rounded-xl bg-zinc-50/80 px-3 py-2.5 text-sm text-zinc-500 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:ring-zinc-800">No verified email on file for this person.</p>
                   )}
                   {person.linkedin && (
                     <a href={`https://www.linkedin.com/in/${person.linkedin}/`} target="_blank" rel="noreferrer"
-                      className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700 dark:text-zinc-200">
+                      className="flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700/80 dark:bg-zinc-900 dark:text-zinc-200">
                       <Linkedin className="h-4 w-4 shrink-0 text-zinc-400" /> linkedin.com/in/{person.linkedin}
                       <ExternalLink className="ml-auto h-3.5 w-3.5 text-zinc-400" />
                     </a>
@@ -114,17 +114,17 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
               </section>
 
               <section>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Draft mail</h3>
+                <h3 className="eyebrow">Draft mail</h3>
                 {draft ? (
-                  <div className="mt-2 rounded-xl border border-zinc-200 p-3.5 dark:border-zinc-700">
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{draft.subject}</p>
+                  <div className="mt-3 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900">
+                    <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{draft.subject}</p>
                     <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{draft.body}</p>
                     <Link to="/drafts" onClick={onClose} className="mt-2.5 inline-block">
                       <Button variant="ghost">Open in Drafts →</Button>
                     </Link>
                   </div>
                 ) : (
-                  <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-sm text-zinc-500 dark:bg-zinc-800">
+                  <p className="mt-3 rounded-xl bg-zinc-50/80 px-3 py-2.5 text-sm leading-relaxed text-zinc-500 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:ring-zinc-800">
                     No draft written for this person yet — research {person.company} in Agent chat to draft one.
                   </p>
                 )}
@@ -132,13 +132,13 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
 
               {peers.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Other leads at {person.company}</h3>
-                  <div className="mt-2 space-y-1">
+                  <h3 className="eyebrow">Other leads at {person.company}</h3>
+                  <div className="mt-3 space-y-1">
                     {peers.map((p) => (
                       <button key={p.email || p.name} onClick={() => onSelect(p)}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/60">
                         <Avatar name={p.name} size="sm" />
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{p.name}</span>
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{p.name}</span>
                           <span className="block truncate text-xs text-zinc-500">{p.title}</span></span>
                         {p.verified && <Badge tone="verified"><BadgeCheck className="h-3 w-3" /> Verified</Badge>}
                       </button>

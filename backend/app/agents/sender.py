@@ -29,37 +29,52 @@ def send_drafts(state: dict, dry_run: bool | None = None) -> dict:
     the caller passed dry_run=False (e.g. POST /approve with sending
     still disabled). Last line of defence: a draft that fails the quality
     gate is BLOCKED here and never mailed, even if it somehow reached
-    the sender."""
+    the sender.
+
+    The 5-minute gap is measured between real sends, not between list
+    positions: a blocked or failed draft in the middle used to reset the
+    gap (the old code only slept when the immediately previous draft had
+    status "sent"), so two real mails could go out back-to-back. The gap
+    now tracks the last real send on a monotonic clock, and dry-runs
+    never sleep — nothing actually leaves the server in a dry-run."""
     if dry_run is None:
         dry = not settings.gmail_send_enabled
     else:
         dry = dry_run or not settings.gmail_send_enabled
     conn = mem.connect()
     sent = []
-    for i, d in enumerate(state.get("drafts") or []):
-        issues = check_draft(d)
-        if issues:
-            status = "blocked: " + "; ".join(issues)
-            mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""),
-                          d.get("subject", ""), d.get("body", ""), status, None)
-            sent.append({**d, "status": status, "message_id": None})
-            continue
-        if i > 0 and sent and sent[-1]["status"].startswith("sent"):
-            time.sleep(gap_seconds())
-        if dry:
-            mid = f"dry-run-{state['company']}-{i}"
-            status = "draft (dry-run)"
-        else:
-            try:
-                mid = gmail_mod.send_mail(
-                    d["to"], d["subject"], d["body"],
-                    attachments=_resume_attachment(),
-                )
-                status = "sent"
-            except Exception as exc:  # logged, batch continues
-                mid = None
-                status = f"failed: {exc}"
-        mem.save_mail(conn, state["company"], d["name"], d["to"], d["subject"], d["body"], status, mid)
-        sent.append({**d, "status": status, "message_id": mid})
-    conn.close()
+    last_sent_at: float | None = None
+    try:
+        for i, d in enumerate(state.get("drafts") or []):
+            issues = check_draft(d)
+            if issues:
+                status = "blocked: " + "; ".join(issues)
+                mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""),
+                              d.get("subject", ""), d.get("body", ""), status, None)
+                sent.append({**d, "status": status, "message_id": None})
+                continue
+            if dry:
+                mid = f"dry-run-{state['company']}-{i}"
+                status = "draft (dry-run)"
+            else:
+                # Enforce the gap from the last real send, however many
+                # blocked/failed drafts came between them.
+                if last_sent_at is not None:
+                    wait = gap_seconds() - (time.monotonic() - last_sent_at)
+                    if wait > 0:
+                        time.sleep(wait)
+                try:
+                    mid = gmail_mod.send_mail(
+                        d["to"], d["subject"], d["body"],
+                        attachments=_resume_attachment(),
+                    )
+                    status = "sent"
+                    last_sent_at = time.monotonic()
+                except Exception as exc:  # logged, batch continues
+                    mid = None
+                    status = f"failed: {exc}"
+            mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""), d.get("subject", ""), d.get("body", ""), status, mid)
+            sent.append({**d, "status": status, "message_id": mid})
+    finally:
+        conn.close()
     return {**state, "sent": sent}

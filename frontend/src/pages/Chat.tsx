@@ -135,21 +135,23 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="flex h-[560px] flex-col overflow-hidden sm:h-[620px] xl:col-span-2">
-          <div className="flex items-center gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-5 w-5" /></span>
+        <Card className="flex h-[560px] flex-col overflow-hidden shadow-soft sm:h-[620px] xl:col-span-2">
+          <div className="flex items-center gap-3 border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/30 ring-1 ring-white/20"><Bot className="h-5 w-5" /></span>
             <div>
-              <p className="text-sm font-bold text-zinc-900 dark:text-white">SDR Agent</p>
+              <p className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
               <p className={cn('flex items-center gap-1.5 text-xs',
                 apiStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : apiStatus === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500')}>
-                <span className={cn('h-1.5 w-1.5 rounded-full',
-                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')} />
+                <span className={cn('relative flex h-1.5 w-1.5 rounded-full',
+                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')}>
+                  {apiStatus === 'online' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
+                </span>
                 {apiStatus === 'online' ? 'Online — LangGraph · Gemini · Gmail'
                   : apiStatus === 'offline' ? `Backend offline — demo mode (${API_BASE_LABEL})`
                     : 'Checking backend…'}
               </p>
             </div>
-            <Badge tone="active" className="ml-auto">Human approval on</Badge>
+            <Badge tone="active" dot className="ml-auto">Human approval on</Badge>
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -157,12 +159,12 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
               {messages.map((m, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
                   className={cn('flex gap-3', m.role === 'user' && 'flex-row-reverse')}>
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ring-2 ring-white dark:ring-zinc-900',
                     m.role === 'agent' ? 'bg-brand-600 text-white' : 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
                     {m.role === 'agent' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
                   </span>
-                  <div className={cn('max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
-                    m.role === 'agent' ? 'rounded-tl-md bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100' : 'rounded-tr-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
+                  <div className={cn('max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm',
+                    m.role === 'agent' ? 'rounded-tl-md bg-zinc-100 text-zinc-800 ring-1 ring-inset ring-zinc-200/60 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700/50' : 'rounded-tr-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
                     {m.text}
                     {streaming && m.role === 'agent' && i === messages.length - 1 && (
                       <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-brand-500 align-text-bottom" aria-hidden />
@@ -173,13 +175,13 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
             </AnimatePresence>
 
             {busy && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-zinc-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-zinc-100/80 bg-white p-4 shadow-soft dark:border-zinc-800/80 dark:bg-zinc-900">
                 <p className="flex items-center gap-2 text-xs font-semibold text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {streaming ? 'Writing your reply…' : 'Agent is working…'}</p>
                 <div className="mt-3 space-y-2">
                   {AGENT_STEPS.map((s, i) => (
                     <div key={s.key} className="flex items-center gap-2.5 text-sm">
-                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
-                        i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-brand-600 text-white' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800')}>
+                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ring-2 ring-white dark:ring-zinc-900',
+                        i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-brand-600 text-white ring-brand-500/30' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800')}>
                         {i < step ? '✓' : i + 1}
                       </span>
                       <span className={i <= step ? 'font-medium text-zinc-800 dark:text-zinc-100' : 'text-zinc-400'}>{s.label}</span>
@@ -191,10 +193,11 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-zinc-100 p-4 dark:border-zinc-800">
+          <div className="border-t border-zinc-100/80 p-4 dark:border-zinc-800/80">
             <div className="mb-3 flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
-                <button key={s} onClick={() => ask(s)} className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:border-brand-300 hover:text-brand-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                <button key={s} onClick={() => ask(s)} disabled={busy}
+                  className="rounded-full border border-zinc-200/80 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700/80 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-brand-400/50">
                   {s}
                 </button>
               ))}
@@ -208,24 +211,24 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
 
         <div className="space-y-4">
           <Card>
-            <div className="border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50"><Sparkles className="h-4 w-4 text-brand-500" /> Drafts from this chat</h3>
+            <div className="border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
+              <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"><Sparkles className="h-4 w-4 text-brand-500" /> Drafts from this chat</h3>
             </div>
             <div className="space-y-3 p-5">
               {drafts.length === 0 && <p className="text-sm leading-relaxed text-zinc-500">No drafts yet — ask the agent to research a company and they'll appear here, ready for approval.</p>}
               {drafts.map((d) => (
-                <div key={d.to} className="rounded-xl border border-zinc-100 p-3.5 dark:border-zinc-800">
+                <div key={d.to} className="rounded-xl border border-zinc-100/80 bg-zinc-50/60 p-3.5 ring-1 ring-inset ring-zinc-100/60 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-800/40 dark:ring-zinc-800/60 dark:hover:bg-zinc-800/70">
                   <div className="flex items-center gap-2.5">
                     <Avatar name={d.name} size="sm" />
-                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{d.name}</p><p className="truncate font-mono text-[11px] text-zinc-400">{d.to}</p></div>
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{d.name}</p><p className="truncate font-mono text-[11px] text-zinc-400">{d.to}</p></div>
                   </div>
-                  <p className="mt-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">{d.subject}</p>
+                  <p className="mt-2 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-300">{d.subject}</p>
                 </div>
               ))}
             </div>
           </Card>
-          <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-5 text-white dark:from-white dark:to-zinc-200 dark:text-zinc-900">
-            <p className="text-sm font-bold">How approval works</p>
+          <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-5 text-white ring-1 ring-white/10 dark:from-white dark:to-zinc-200 dark:text-zinc-900 dark:ring-zinc-900/10">
+            <p className="text-sm font-bold tracking-tight">How approval works</p>
             <p className="mt-1.5 text-xs leading-relaxed opacity-80">Drafts never send on their own. Approve one in Drafts, or reply YES on WhatsApp — the sender then sends one mail every 5 minutes, PDF attached, and logs every message ID.</p>
           </Card>
         </div>

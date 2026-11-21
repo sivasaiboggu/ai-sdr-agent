@@ -6,7 +6,8 @@ FastAPI routes:
   POST /whatsapp/test     -> free local test: {"from": "+91...", "text": "research iion"}
        -> returns the agent's reply, no WhatsApp account needed.
 """
-from fastapi import Request
+from fastapi import HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp.client import send_whatsapp, WHATSAPP_VERIFY_TOKEN
@@ -64,10 +65,18 @@ def handle_text(sender: str, text: str) -> str:
             return "Nothing to send yet — first send 'research <company>'."
         from backend.app.agents import sender as sender_agent
         state = {"company": pending["company"], "drafts": pending["drafts"]}
-        # Dry-run unless GMAIL_SEND_ENABLED=true; the reply tells the truth.
-        sent = sender_agent.send_drafts(state, dry_run=True)
+        # dry_run=False lets the sender decide from settings: a real send
+        # only when GMAIL_SEND_ENABLED=true, dry-run otherwise. The old
+        # code passed dry_run=True unconditionally, so YES on WhatsApp
+        # could never actually send — it always dry-ran while telling
+        # the user the mails were going out.
+        sent = sender_agent.send_drafts(state, dry_run=False)
         _PENDING.pop(sender, None)
         lines = "\n".join(f"• {s['to']}: {s['status']}" for s in sent["sent"])
+        if sent["sent"] and all(s["status"] == "draft (dry-run)" for s in sent["sent"]):
+            return (f"✅ Approved — but this was a DRY-RUN, nothing was really sent "
+                    f"(Gmail sending is off in the backend). Set GMAIL_SEND_ENABLED=true "
+                    f"and a Gmail app password, then research again and reply YES:\n{lines}")
         return f"✅ Sending {len(sent['sent'])} mails, one every 5 minutes, PDF attached:\n{lines}"
 
     if low in ("no", "edit", "don't send"):
@@ -76,17 +85,21 @@ def handle_text(sender: str, text: str) -> str:
 
     if low == "status":
         conn = mem.connect()
-        companies = conn.execute("SELECT name FROM companies").fetchall()
-        mails = conn.execute("SELECT company, recipient, status FROM mails ORDER BY id DESC LIMIT 10").fetchall()
-        conn.close()
+        try:
+            companies = conn.execute("SELECT name FROM companies").fetchall()
+            mails = conn.execute("SELECT company, recipient, status FROM mails ORDER BY id DESC LIMIT 10").fetchall()
+        finally:
+            conn.close()
         c = "\n".join(f"• {r[0]}" for r in companies) or "No companies yet."
         m = "\n".join(f"• {r[0]} → {r[1]}: {r[2]}" for r in mails) or "No mails yet."
         return f"📊 Status\nCompanies:\n{c}\n\nMails:\n{m}"
 
     if low == "replies":
         conn = mem.connect()
-        rows = conn.execute("SELECT company, recipient, reply_class FROM mails WHERE reply_class IS NOT NULL").fetchall()
-        conn.close()
+        try:
+            rows = conn.execute("SELECT company, recipient, reply_class FROM mails WHERE reply_class IS NOT NULL").fetchall()
+        finally:
+            conn.close()
         if not rows:
             return "No classified replies yet. I'll check replies and tell you when one comes in."
         return "\n".join(f"• {r[0]} → {r[1]}: {r[2]}" for r in rows)
@@ -95,11 +108,15 @@ def handle_text(sender: str, text: str) -> str:
             "'research iion'.")
 
 async def webhook_get(request: Request):
-    """Meta verification handshake."""
+    """Meta verification handshake. The challenge must come back as raw
+    text (Meta compares the body to the challenge string), and a failed
+    verification is a real 403. The old code returned a plain tuple
+    (body, 403), which FastAPI serialises as a JSON array with status
+    200 — Meta saw a successful verification that never happened."""
     q = request.query_params
     if q.get("hub.mode") == "subscribe" and q.get("hub.verify_token") == WHATSAPP_VERIFY_TOKEN:
-        return int(q.get("hub.challenge", "0"))
-    return {"error": "verification failed"}, 403
+        return PlainTextResponse(q.get("hub.challenge", "0"))
+    raise HTTPException(status_code=403, detail="verification failed")
 
 async def webhook_post(request: Request):
     """Incoming message — Cloud API shape, with Twilio sandbox shape handled too.
@@ -126,5 +143,11 @@ async def webhook_post(request: Request):
     if not sender or not text:
         return {"status": "ignored"}
     reply = handle_text(sender, text)
-    send_whatsapp(sender, reply)
+    try:
+        send_whatsapp(sender, reply)
+    except Exception:
+        # The message was processed; a failed reply send must not 500 the
+        # webhook — Meta would retry the same message and re-run the
+        # command (including a YES approval) on the duplicate delivery.
+        pass
     return {"status": "ok"}

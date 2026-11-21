@@ -47,6 +47,9 @@ def send_whatsapp(to: str, text: str) -> dict:
             headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
             json={"messaging_product": "whatsapp", "to": to,
                   "type": "text", "text": {"body": text}}, timeout=15)
+        # Surface a bad token / rejected send instead of silently
+        # reporting success while the user never got the reply.
+        r.raise_for_status()
         return {"provider": p, "status": r.status_code, "response": r.text[:500]}
     if p == "twilio-sandbox":
         from twilio.rest import Client

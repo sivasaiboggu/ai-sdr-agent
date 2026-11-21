@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
-import { Sidebar, Topbar } from './components/layout'
+import { Sidebar, Topbar, useBackendHealth } from './components/layout'
 import CommandPalette from './components/CommandPalette'
 import Discover from './pages/Discover'
 import Dashboard from './pages/Dashboard'
@@ -37,12 +37,22 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; tone: ToastTone } | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
   const location = useLocation()
+  // One /health poll for the whole app — Sidebar and Topbar share it
+  // instead of polling separately.
+  const health = useBackendHealth()
 
   const showToast = useCallback((msg: string, tone: ToastTone = 'success') => {
+    // A new toast replaces the old one — and must not be cleared early
+    // by the previous toast's timer (the old code kept one shared
+    // timeout that fired on whatever toast was showing).
+    window.clearTimeout(toastTimer.current)
     setToast({ msg, tone })
-    window.setTimeout(() => setToast(null), 4200)
+    toastTimer.current = window.setTimeout(() => setToast(null), 4200)
   }, [])
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -62,12 +72,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} health={health} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleTheme={toggle} dark={dark} />
       <div className="lg:pl-64">
-        <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} onOpenPalette={() => setPaletteOpen(true)} query={query} onQuery={setQuery} />
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <Routes>
+        <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} onOpenPalette={() => setPaletteOpen(true)} query={query} onQuery={setQuery} health={health} />
+        <AnimatePresence mode="wait">
+          <motion.main key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/discover" element={<Discover />} />
             <Route path="/campaigns" element={<Campaigns query={query} />} />
@@ -77,18 +90,19 @@ export default function App() {
             <Route path="/chat" element={<Chat onToast={showToast} />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
-          <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-5 text-xs text-zinc-400 dark:border-zinc-800">
-            <span>SDR Agent v0.9.1 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+          <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200/70 pt-5 text-xs text-zinc-400 dark:border-zinc-800/70">
+            <span>SDR Agent v0.9.2 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
-        </main>
+          </motion.main>
+        </AnimatePresence>
       </div>
 
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: 24, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.96 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-2xl bg-zinc-900 px-4 py-3.5 text-sm font-medium text-white shadow-pop dark:bg-white dark:text-zinc-900"
+            className="fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-2xl bg-zinc-900 px-4 py-3.5 text-sm font-medium text-white shadow-pop ring-1 ring-white/10 dark:bg-white dark:text-zinc-900 dark:ring-zinc-900/10"
             role="status">
             {TOAST_ICON[toast.tone]}
             {toast.msg}

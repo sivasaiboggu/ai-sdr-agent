@@ -20,22 +20,24 @@ function PipelineFunnel({ company, leads, sent, replies }: { company: string; le
   ]
   const max = Math.max(leads, 1)
   return (
-    <div className="mt-4">
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+    <div className="mt-5">
+      <div className="flex h-2.5 w-full gap-1">
         {stages.map((s) => (
           <motion.div key={s.label} initial={{ width: 0 }} animate={{ width: `${(s.count / max) * 100}%` }} transition={{ duration: 0.6 }}
-            className={cn('h-full', s.tone)} title={`${s.label}: ${s.count}`} />
+            className={cn('h-full rounded-full', s.tone, s.count > 0 && 'min-w-[6px]')} title={`${s.label}: ${s.count}`} />
         ))}
       </div>
-      <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+      <div className="mt-2.5 grid grid-cols-4 gap-2 text-center">
         {stages.map((s) => (
           <div key={s.label}>
-            <p className="text-sm font-bold text-zinc-900 dark:text-white">{s.count}</p>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">{s.label}</p>
+            <p className="tabular text-sm font-bold text-zinc-900 dark:text-white">{s.count}</p>
+            <p className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+              <span className={cn('h-1.5 w-1.5 rounded-full', s.tone)} />{s.label}
+            </p>
           </div>
         ))}
       </div>
-      <p className="mt-1.5 text-center text-xs text-zinc-400">
+      <p className="mt-2 text-center text-xs text-zinc-400">
         {sent === 0 ? 'Nothing sent yet — approve a draft to start the pipeline.'
           : replies === 0 ? `${sent} of ${leads} leads mailed — waiting on replies.`
             : `${replies} ${replies === 1 ? 'reply' : 'replies'} from ${sent} sent.`}
@@ -63,10 +65,10 @@ export default function Campaigns({ query }: { query: string }) {
         {list.map((c, i) => {
           const people = SEED_PEOPLE.filter((p) => p.company === c.name)
           return (
-            <motion.div key={c.name} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card group p-5 transition-shadow hover:shadow-pop">
+            <motion.div key={c.name} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card card-hover group p-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 text-sm font-bold text-white shadow-sm ring-1 ring-white/10 dark:bg-white dark:text-zinc-900 dark:ring-zinc-900/10">
                     {c.name.slice(0, 2).toUpperCase()}
                   </span>
                   <div>
@@ -76,19 +78,21 @@ export default function Campaigns({ query }: { query: string }) {
                     <p className="text-xs font-medium text-zinc-500">{c.role}</p>
                   </div>
                 </div>
-                <Badge tone={c.status}>{c.status}</Badge>
+                <Badge tone={c.status} dot={c.status === 'active'}>{c.status}</Badge>
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{c.summary}</p>
               <PipelineFunnel company={c.name} leads={c.leads} sent={c.sent} replies={c.replies} />
-              <div className="mt-4 flex items-center gap-1">
-                {people.slice(0, 4).map((p) => <Avatar key={p.email || p.name} name={p.name} size="sm" />)}
+              <div className="mt-5 flex items-center gap-1">
+                <div className="flex -space-x-2">
+                  {people.slice(0, 4).map((p) => <Avatar key={p.email || p.name} name={p.name} size="sm" />)}
+                </div>
                 {people.length > 4 && <span className="ml-1 text-xs font-semibold text-zinc-500">+{people.length - 4}</span>}
                 <span className="ml-auto text-xs text-zinc-400">Updated {timeAgo(c.updatedAt)}</span>
               </div>
-              <div className="mt-4 grid grid-cols-3 divide-x divide-zinc-100 rounded-xl bg-zinc-50 py-3 text-center dark:divide-zinc-800 dark:bg-zinc-800/60">
-                <div><p className="text-lg font-bold text-zinc-900 dark:text-white">{c.leads}</p><p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Leads</p></div>
-                <div><p className="text-lg font-bold text-zinc-900 dark:text-white">{c.sent}</p><p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Sent</p></div>
-                <div><p className="text-lg font-bold text-zinc-900 dark:text-white">{c.replyRate}%</p><p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Reply rate</p></div>
+              <div className="mt-4 grid grid-cols-3 divide-x divide-zinc-100 rounded-xl bg-zinc-50/80 py-3 text-center ring-1 ring-inset ring-zinc-100 dark:divide-zinc-800 dark:bg-zinc-800/50 dark:ring-zinc-800">
+                <div><p className="tabular text-lg font-bold leading-none text-zinc-900 dark:text-white">{c.leads}</p><p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">Leads</p></div>
+                <div><p className="tabular text-lg font-bold leading-none text-zinc-900 dark:text-white">{c.sent}</p><p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">Sent</p></div>
+                <div><p className="tabular text-lg font-bold leading-none text-zinc-900 dark:text-white">{c.replyRate}%</p><p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">Reply rate</p></div>
               </div>
               <div className="mt-4 flex gap-2">
                 <Link to="/leads" className="flex-1"><Button variant="ghost" className="w-full">View leads</Button></Link>

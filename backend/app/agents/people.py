@@ -9,9 +9,11 @@ def run(state: dict) -> dict:
     company = state["company"]
     people = find_people(company)
     conn = mem.connect()
-    for p in people:
-        mem.save_person(conn, company, p["name"], p["title"], p["email"],
-                        p["verified"], p["score"], p.get("linkedin", ""))
-    conn.close()
+    try:
+        for p in people:
+            mem.save_person(conn, company, p["name"], p["title"], p["email"],
+                            p["verified"], p["score"], p.get("linkedin", ""))
+    finally:
+        conn.close()
     mailable = [p for p in people if p["verified"] and p["email"]]
     return {**state, "people": people, "mailable": mailable}

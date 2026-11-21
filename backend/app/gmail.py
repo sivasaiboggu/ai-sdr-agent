@@ -17,6 +17,7 @@ from email.message import EmailMessage
 from email.utils import formataddr
 
 from backend.app.config import settings
+from backend.app.quality import is_valid_email
 
 
 class GmailNotConfiguredError(RuntimeError):
@@ -36,6 +37,13 @@ def send_mail(to: str, subject: str, body: str, attachments: list[str] | None = 
             "(Google Account > Security > 2-Step Verification > App passwords) "
             "and put it in .env. Nothing was sent."
         )
+    # Fail fast at the send boundary instead of letting SMTP bounce a
+    # malformed address after the sender already logged the attempt.
+    if not is_valid_email(to or ""):
+        raise ValueError(f"Refusing to send: recipient is not a valid email address: {to!r}")
+    for path in attachments or []:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Attachment not found, nothing sent: {path}")
     msg = EmailMessage()
     msg["From"] = formataddr(("Sivasai Boggu", settings.gmail_from))
     msg["To"] = to

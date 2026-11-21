@@ -71,27 +71,27 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
           const isOpen = open === d.to
           const isApproved = approved.has(d.to)
           return (
-            <motion.div key={d.to} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card overflow-hidden">
-              <button onClick={() => setOpen(isOpen ? null : d.to)} className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40">
+            <motion.div key={d.to} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card overflow-hidden transition-shadow hover:shadow-soft">
+              <button onClick={() => setOpen(isOpen ? null : d.to)} aria-expanded={isOpen} className="flex w-full items-center gap-4 px-6 py-4 text-left transition hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40">
                 <Avatar name={d.name} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  <p className="truncate text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
                     To: {d.name} <span className="font-normal text-zinc-400">&lt;{d.to}&gt;</span>
                   </p>
                   <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{d.subject}</p>
                 </div>
                 <Badge tone={d.company === 'iion' ? 'active' : 'muted'}>{d.company}</Badge>
                 {isApproved && <Badge tone="interested"><Check className="h-3 w-3" /> Approved</Badge>}
-                <ChevronDown className={cn('h-4 w-4 shrink-0 text-zinc-400 transition-transform', isOpen && 'rotate-180')} />
+                <ChevronDown className={cn('h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300', isOpen && 'rotate-180')} />
               </button>
               <AnimatePresence initial={false}>
                 {isOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
-                    <div className="border-t border-zinc-100 px-5 py-4 dark:border-zinc-800">
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Subject: {d.subject}</p>
-                      <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 font-sans text-sm leading-relaxed text-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-300">{d.body}</pre>
+                    <div className="border-t border-zinc-100/80 px-6 py-5 dark:border-zinc-800/80">
+                      <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Subject: {d.subject}</p>
+                      <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-zinc-50/80 p-4 font-sans text-sm leading-relaxed text-zinc-700 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:text-zinc-300 dark:ring-zinc-800">{d.body}</pre>
                       <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500"><Paperclip className="h-3.5 w-3.5" /> Sivasai_Boggu_Resume.pdf attached</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-400 dark:ring-zinc-700/60"><Paperclip className="h-3.5 w-3.5" /> Sivasai_Boggu_Resume.pdf attached</span>
                         <span className="ml-auto flex gap-2">
                           <Button variant="ghost" onClick={() => rewriteInChat(d)}><PenLine className="h-3.5 w-3.5" /> Rewrite in chat</Button>
                           <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved || sending === d.to} onClick={() => approve(d)}>
@@ -107,7 +107,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
           )
         })}
       </div>
-      <Card className="mt-4 border-dashed p-5 text-sm text-zinc-500 dark:text-zinc-400">
+      <Card className="mt-4 border-dashed p-5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
         Sending is rate-limited to one mail every 5 minutes, and every send is logged in the backend — with its real Gmail message ID when it actually went out (dry-run entries carry a dry-run ID instead).
       </Card>
     </div>

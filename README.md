@@ -165,7 +165,7 @@ back to seeded demo data when the API is not running.
 Run tests:
 
 ```bash
-pytest tests/ -q   # 52 tests: writer quality gate, lead scoring, sender
+pytest tests/ -q   # 60 tests: writer quality gate, lead scoring, sender
                    # guard, approval flow, WhatsApp handler, API validation,
                    # /api prefix parity, CORS preflight, Gemini SDK path,
                    # Postgres translation + live round-trip, boards registry
@@ -223,6 +223,54 @@ Compose builds both images (see `backend/Dockerfile`,
 starting the frontend. Both Dockerfiles are build-tested (v0.9); a
 `.dockerignore` keeps venvs, `node_modules`, local `.db` files and `.env`
 out of the build context.
+
+## v0.9.2 — what changed (21 Nov 2026)
+
+- **Premium UI pass** — one design-token system across the dashboard
+  (layered soft/lift/glow shadows, translucent card borders, glass
+  sidebar/topbar/palette, faint brand glow on the canvas, gradient
+  brand button with glow hover, tabular figures everywhere a number
+  changes, visible keyboard focus on all controls). Stat cards lift on
+  hover, the campaign funnel is segmented with a dotted legend, the
+  Leads table has a sticky header and real counts on the filter pills,
+  Drafts/Replies/Chat/Discover cards share the same spacing, rings and
+  motion, and route changes fade between pages. No feature, copy or
+  data changed — seeded demo data is still labelled as demo.
+- **Charts go dark-mode-aware** — the activity tooltip was a light
+  card that stayed light in dark mode; it now follows the theme, and
+  the grid is a mid-grey hairline that reads in both themes.
+- **Senior logic review — real bugs fixed** — the sender's 5-minute
+  gap was checked against the previous draft's status, so a blocked
+  draft between two real sends reset it and the second mail went out
+  immediately; the gap is now measured between real sends on a
+  monotonic clock (dry-runs never sleep). WhatsApp YES passed
+  `dry_run=True` unconditionally, so approval there could never
+  actually send while the reply claimed the mails were going out; it
+  now follows settings and says plainly when it was a dry-run. The
+  WhatsApp verify handshake returned a `(body, 403)` tuple, which
+  FastAPI serialises as a JSON array with status 200 — a failed
+  verification looked successful; it is now a real 403 with the
+  challenge as plain text. The tracker recorded the literal placeholder
+  "personalised research hook" as a learning for every interested reply
+  without one; only a real hook is recorded now. The tracker also ran
+  inside the LangGraph chain before approval and again after the
+  sender — it now runs once, after the sender. Gmail validates the
+  recipient and attachment paths before SMTP, SQLite connects with a
+  30s timeout instead of failing on a busy moment, and DB connections
+  in the API/agents/webhook are closed in `try/finally` instead of
+  leaking when a query raises. A failed WhatsApp reply send no longer
+  500s the webhook (Meta would retry and re-run the command), and the
+  Cloud API client raises on a non-2xx instead of silently reporting
+  success. The App toast timer could clear a new toast early; the
+  Sidebar and Topbar polled `/health` separately (now once, shared).
+- **Dependencies** — none changed: `npm outdated` shows every package
+  already at its wanted version; all "latest" versions are majors
+  (React 19, Tailwind 4, Vite 8, framer-motion 14, recharts 3,
+  react-router 7, TypeScript 7) and were deliberately left alone.
+- **Tests** — 60 passed, 2 skipped (was 52 passed): 8 new tests cover
+  the gap surviving a blocked draft, dry-runs never sleeping, no
+  placeholder learning (and a real hook still recorded), the verify
+  handshake ok/403, and WhatsApp YES in dry-run and with Gmail on.
 
 ## v0.9.1 — what changed (21 Nov 2026)
 

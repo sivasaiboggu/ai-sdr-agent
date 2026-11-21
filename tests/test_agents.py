@@ -28,6 +28,40 @@ def test_tracker_classification():
     assert tracker.classify_reply("We are not hiring right now") == "not now"
 
 
+def test_tracker_records_no_placeholder_learning(monkeypatch, tmp_path):
+    """Regression: an interested reply with no hook used to record the
+    literal placeholder 'personalised research hook' as a learning."""
+    from backend.app import memory as mem
+
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "tracker.db"))
+    result = tracker.run({"company": "iion", "replies": [
+        {"from": "Wout van Damme", "text": "Let's schedule a call this week"},
+    ]})
+    assert result["reply_classes"][0]["class"] == "interested"
+    conn = mem.connect()
+    try:
+        rows = conn.execute("SELECT text FROM learnings").fetchall()
+    finally:
+        conn.close()
+    assert rows == [], f"no learning should be recorded without a real hook, got {rows}"
+
+
+def test_tracker_records_real_hook_learning(monkeypatch, tmp_path):
+    from backend.app import memory as mem
+
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "tracker2.db"))
+    tracker.run({"company": "iion", "replies": [
+        {"from": "Wout van Damme", "text": "Let's schedule a call",
+         "hook": "immersiion shadow-mode prototype"},
+    ]})
+    conn = mem.connect()
+    try:
+        rows = conn.execute("SELECT text, outcome FROM learnings").fetchall()
+    finally:
+        conn.close()
+    assert rows == [("immersiion shadow-mode prototype", "interested reply")]
+
+
 class _FakeGenAIResponse:
     def __init__(self, text):
         self.text = text

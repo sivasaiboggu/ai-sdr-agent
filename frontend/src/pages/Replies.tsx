@@ -27,18 +27,18 @@ export default function Replies() {
       )}
       <div className="space-y-3">
         {SEED_REPLIES.map((r, i) => (
-          <motion.div key={r.id} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card p-5">
+          <motion.div key={r.id} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card card-hover p-6">
             <div className="flex flex-wrap items-start gap-4">
               <Avatar name={r.from} size="lg" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-bold text-zinc-900 dark:text-white">{r.from}</p>
-                  <Badge tone={r.classification}>{r.classification}</Badge>
-                  <span className="text-xs text-zinc-400">{r.company} · {timeAgo(r.receivedAt)}</span>
+                  <p className="font-bold tracking-tight text-zinc-900 dark:text-white">{r.from}</p>
+                  <Badge tone={r.classification} dot>{r.classification}</Badge>
+                  <span className="text-xs font-medium text-zinc-400">{r.company} · {timeAgo(r.receivedAt)}</span>
                 </div>
-                <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">{r.subject}</p>
-                <p className="mt-1.5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{r.snippet}</p>
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-zinc-50 px-2.5 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                <p className="mt-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">{r.subject}</p>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{r.snippet}</p>
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-zinc-50 px-2.5 py-1.5 text-xs font-medium text-zinc-600 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700/60">
                   <CalendarClock className="h-3.5 w-3.5" /> Next step: {LABELS[r.classification]}
                 </p>
               </div>
@@ -47,7 +47,9 @@ export default function Replies() {
         ))}
       </div>
       <Card className="mt-4 flex items-start gap-3 border-dashed p-5">
-        <Inbox className="mt-0.5 h-5 w-5 shrink-0 text-zinc-400" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700/60">
+          <Inbox className="h-5 w-5" />
+        </span>
         <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
           Follow-ups are scheduled 4–5 days after the first mail. The tracker watches Gmail for replies, re-classifies them,
           and records which hooks and subjects got a reply — so the writer gets better with every campaign.
