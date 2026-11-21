@@ -1,0 +1,12 @@
+# Keep the Docker build context small: never ship venvs, caches, local
+# databases or the git history into an image.
+.git
+.venv
+venv
+**/__pycache__
+**/*.pyc
+**/node_modules
+*.db
+.env
+frontend/dist
+.pytest_cache

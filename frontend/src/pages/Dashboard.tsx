@@ -14,7 +14,7 @@ function Stat({ icon: Icon, label, value, delta, tone }: { icon: typeof Users; l
         <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></span>
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"><ArrowUpRight className="h-3 w-3" />{delta}</span>
       </div>
-      <p className="mt-4 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">{value}</p>
+      <p className="tabular mt-4 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">{value}</p>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
     </motion.div>
   )

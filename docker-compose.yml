@@ -1,9 +1,26 @@
 # Local demo stack. Production hosting is Vercel (frontend) + a host with a
 # persistent disk for the backend (Render/Railway/Fly) — see README Deployment.
-# NOTE: there is no Docker on this dev VM, so these Dockerfiles are NOT
-# build-tested here; validate with `docker compose up --build` on a machine
-# with Docker before relying on them.
+# Dockerfiles are build-tested (see README changelog, v0.9).
+#
+# Postgres (optional): the `db` service below runs Postgres 16. To use it,
+# set POSTGRES_PASSWORD in .env and point the backend at it, e.g.
+#   DATABASE_URL=postgresql://sdr:${POSTGRES_PASSWORD}@db:5432/sdr
+# Leave DATABASE_URL as sqlite:///... (the default) and the backend keeps
+# using ./sdr.db — the db container then just sits idle. No credentials are
+# hardcoded here: the password comes from the environment only.
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sdr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-sdr}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sdr}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   backend:
     build:
       context: .
@@ -28,3 +45,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  pgdata:

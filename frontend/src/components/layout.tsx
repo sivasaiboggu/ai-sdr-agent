@@ -67,10 +67,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </nav>
 
         <div className="border-t border-zinc-100 p-4 dark:border-zinc-800">
-          <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 p-4 text-white shadow-lg shadow-brand-600/20">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Zap className="h-4 w-4" /> WhatsApp bot</div>
-            <p className="mt-1 text-xs leading-relaxed text-white/80">Chat with the agent on WhatsApp — research, draft, approve with a YES.</p>
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+            <div className="flex items-center gap-2 text-sm font-semibold"><span className="h-2 w-2 rounded-full bg-emerald-400" /><Zap className="h-4 w-4 text-emerald-400" /> WhatsApp bot</div>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-400">Chat with the agent on WhatsApp — research, draft, approve with a YES.</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-200">
               <MessageCircle className="h-3 w-3" /> Free Cloud API
             </div>
           </div>

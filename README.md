@@ -28,7 +28,8 @@ sends with a 5-minute gap, tracks replies, and remembers everything.
 5. **Sender + Tracker** — Gmail, 5-minute gap, PDF resume attached,
    reply classification (interested / not now / bounce / out of office),
    follow-up in 4–5 days.
-6. **Self-improving memory** — SQLite (Postgres optional) stores companies,
+6. **Self-improving memory** — SQLite by default, Postgres when
+   `DATABASE_URL` is set (since v0.9), stores companies,
    people, mails and replies. Hooks/subjects that got a reply are recorded
    and reused.
 7. **Dashboard** — React + TypeScript + Vite, companies / leads / mails /
@@ -44,7 +45,7 @@ sends with a 5-minute gap, tracks replies, and remembers everything.
 | Web search | DuckDuckGo HTML (free) | No |
 | People / emails | Apollo free credits + verified seed data | No — optional |
 | Email | Gmail (free) | No |
-| Database | SQLite (free, default); Postgres optional | No |
+| Database | SQLite (free, default); Postgres when `DATABASE_URL` is set | No |
 | WhatsApp | Meta Cloud API free tier / Twilio sandbox | No |
 | Hosting (demo) | Vercel / Render free tier | No |
 
@@ -198,11 +199,13 @@ pytest tests/ -q   # 29 tests: writer quality gate, lead scoring, sender
 4. Health check: `GET /health` (or `/api/health`) — returns `{"status":
    "ok", ...}` plus which optional integrations are configured. Point the
    host's health check at it.
-5. Storage is SQLite (`./sdr.db`); give the backend a persistent volume
-   and back the file up. **Postgres is not wired up yet** — `DATABASE_URL`
-   is read into config but `memory.py` always uses the local SQLite file,
-   so a Postgres URL would be silently ignored. Deploy single-instance
-   with SQLite until that is implemented.
+5. Storage is SQLite (`./sdr.db`) by default; give the backend a persistent
+   volume and back the file up. **Postgres is supported since v0.9** — set
+   `DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/sdr` and `memory.py`
+   creates the schema on first connect (idempotent `CREATE TABLE IF NOT
+   EXISTS`); SQLite remains the fallback when the URL is unset or a
+   `sqlite://` URL. `docker-compose.yml` also ships an optional Postgres
+   16 service (`db`); see its header comment.
 6. Real Gmail sending is done by this backend since v0.6
    (`backend/app/gmail.py`, SMTP): it needs `GMAIL_SEND_ENABLED=true`
    AND a Gmail app password (`GMAIL_APP_PASSWORD` in `.env`). Without
@@ -216,9 +219,30 @@ docker compose up --build   # backend :8000, frontend :5173
 
 Compose builds both images (see `backend/Dockerfile`,
 `frontend/Dockerfile`) and waits for the backend's `/health` before
-starting the frontend. Note: these Dockerfiles were added without a
-Docker daemon available to build-test them — run the command once on a
-machine with Docker before relying on them.
+starting the frontend. Both Dockerfiles are build-tested (v0.9); a
+`.dockerignore` keeps venvs, `node_modules`, local `.db` files and `.env`
+out of the build context.
+
+## v0.9 — what changed (21 Nov 2026)
+
+- **Postgres is wired up** — `backend/app/memory.py` now honours
+  `DATABASE_URL`: a `postgres://` / `postgresql://` URL connects via
+  `psycopg` (v3, added to `backend/requirements.txt`) and creates the
+  schema on first connect; SQLite stays the default and the fallback
+  when the URL is unset or a `sqlite://` URL. No credentials are
+  hardcoded — the URL comes from the environment only. The same
+  `?`-placeholder / `INSERT OR REPLACE` calls work on both backends
+  through a small translation wrapper, so no agent code changed.
+  `docker-compose.yml` gains an optional Postgres 16 service (`db`).
+- **Dockerfiles build-tested** — both images build (plus a new
+  `.dockerignore`, which cut the build context from ~454 MB to a few MB
+  by excluding venvs, `node_modules`, `.db` files and `.env`).
+- **Tests** — 49 passed, 2 skipped (was 45): new `tests/test_postgres.py`
+  covers the SQL translation and the Postgres round-trip
+  (company/person upserts, mail ids, the approve re-mail guard,
+  coverage aggregation); the 2 live tests run only when
+  `SDR_TEST_POSTGRES_URL` is set and pass 6/6 against a local
+  Postgres 16. `/health` reports `"database": "postgres"` when wired.
 
 ## v0.8 — what changed (20 Nov 2026)
 
@@ -293,7 +317,7 @@ machine with Docker before relying on them.
   lets the Vercel frontend call the backend cross-origin.
 - **Env handling** — `.env` is now actually loaded (`load_dotenv` in
   `config.py`); `.env.example` documents `CORS_ORIGINS` and `PORT` and
-  notes the Postgres limitation. Frontend reads `VITE_API_URL`
+  the Postgres option. Frontend reads `VITE_API_URL`
   (`frontend/.env.example`); the dev proxy strips the `/api` prefix.
 - **Honest dashboard** — seeded demo data is labelled as such on every
   page; the invented "interested" reply and the hardcoded "50% reply
@@ -341,14 +365,13 @@ docker compose up --build
 | `APOLLO_API_KEY` | Optional. Live Apollo verified-email lookup. |
 | `GMAIL_SEND_ENABLED` | `false` by default (dry-run). `true` only to send real mail. |
 | `SEND_GAP_SECONDS` | 300 by default — 5 minutes between cold mails. |
-| `DATABASE_URL` | `sqlite:///./sdr.db` by default. A Postgres URL is accepted by config but **not wired to storage yet** (see note below). |
+| `DATABASE_URL` | `sqlite:///./sdr.db` by default. A `postgres://` / `postgresql://` URL switches storage to Postgres (schema created on first connect). |
 | `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (default `http://localhost:5173,http://localhost:3000`). Add the deployed frontend origin. |
 | `PORT` | Port the API listens on (`8000` locally; hosts like Render set it). |
 | `VITE_API_URL` | Frontend only (`frontend/.env.example`): deployed backend origin, e.g. `https://ai-sdr-agent-api.onrender.com`. Unset = relative `/api/*` (dev proxy only). |
 
-> Postgres note: `DATABASE_URL` is read into config, but storage currently
-> always uses the local SQLite file — a Postgres URL is silently ignored.
-> See Deployment.
+> Postgres note: since v0.9, a Postgres `DATABASE_URL` switches storage
+> to Postgres (see Deployment); SQLite remains the default.
 | `RESUME_PATH` | PDF attached to every mail. |
 
 ## Demo flow

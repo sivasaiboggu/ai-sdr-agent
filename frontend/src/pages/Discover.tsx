@@ -83,9 +83,9 @@ export default function Discover() {
           { label: 'Boards', value: String(boards.length || 8), sub: 'Internshala never listed' },
           { label: 'Companies covered', value: coverageLoaded ? String(covered.size) : '…', sub: 'Researched, mailed or sent' },
           { label: 'Mails sent', value: coverageLoaded ? String(sentTotal) : '…', sub: 'Real sends logged in memory' },
-        ].map((s) => (
-          <Card key={s.label} className="p-4 text-center">
-            <p className="text-2xl font-bold text-zinc-900 dark:text-white">{s.value}</p>
+        ].map((s, i) => (
+          <Card key={s.label} className={`rise rise-${i + 1} p-4 text-center`}>
+            <p className="tabular text-2xl font-bold text-zinc-900 dark:text-white">{s.value}</p>
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{s.label}</p>
             <p className="mt-0.5 text-[11px] text-zinc-400">{s.sub}</p>
           </Card>
