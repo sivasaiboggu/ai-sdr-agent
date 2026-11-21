@@ -6,6 +6,7 @@ FastAPI routes:
   POST /whatsapp/test     -> free local test: {"from": "+91...", "text": "research iion"}
        -> returns the agent's reply, no WhatsApp account needed.
 """
+from collections import OrderedDict
 from fastapi import HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from backend.app.graph import run_campaign
@@ -27,6 +28,29 @@ I only mail verified emails, never guessed ones."""
 
 # Per-sender pending state (in-memory for Phase 1; campaigns are in SQLite).
 _PENDING: dict[str, dict] = {}
+
+# Message ids already handled, oldest first (bounded, in-memory).
+# Meta and Twilio redeliver a webhook when the first attempt is slow or
+# the reply send fails; without this a redelivered "research" re-runs the
+# whole campaign, and a redelivered YES after a re-research re-sends.
+# A restart forgets the set, which is safe — the sender's own duplicate
+# guard still blocks a re-mail.
+_SEEN_MESSAGE_IDS: "OrderedDict[str, None]" = OrderedDict()
+_MAX_SEEN_IDS = 1000
+
+
+def _is_duplicate_delivery(message_id: str | None) -> bool:
+    """True when this delivery was already handled. Messages without an
+    id (no Cloud API id / no Twilio MessageSid) can't be deduped and are
+    always processed."""
+    if not message_id:
+        return False
+    if message_id in _SEEN_MESSAGE_IDS:
+        return True
+    _SEEN_MESSAGE_IDS[message_id] = None
+    while len(_SEEN_MESSAGE_IDS) > _MAX_SEEN_IDS:
+        _SEEN_MESSAGE_IDS.popitem(last=False)
+    return False
 
 def handle_text(sender: str, text: str) -> str:
     msg = text.strip()
@@ -126,10 +150,12 @@ async def webhook_post(request: Request):
     except Exception:
         return {"status": "ignored"}
     # Cloud API: entry[0].changes[0].value.messages[0]
+    message_id = None
     try:
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
         sender = msg["from"]
         text = msg["text"]["body"]
+        message_id = msg.get("id")
     except Exception:
         # Twilio sandbox posts form fields From / Body instead.
         try:
@@ -138,10 +164,13 @@ async def webhook_post(request: Request):
             return {"status": "ignored"}
         sender = str(form.get("From", "")).replace("whatsapp:", "")
         text = str(form.get("Body", ""))
+        message_id = str(form.get("MessageSid", "") or "") or None
         if not text:
             return {"status": "ignored"}
     if not sender or not text:
         return {"status": "ignored"}
+    if _is_duplicate_delivery(message_id):
+        return {"status": "duplicate"}
     reply = handle_text(sender, text)
     try:
         send_whatsapp(sender, reply)

@@ -47,9 +47,13 @@ def test_stream_happy_path(monkeypatch):
     # The streamed tokens reassemble into exactly the done reply.
     streamed = "".join(p["text"] for e, p in events if e == "token")
     assert streamed == done["reply"]
-    # Steps are the real pipeline stages, in order.
+    # Steps are the real pipeline stages, in order — research appears
+    # twice (start, then done once the run finishes) so the chat step
+    # indicator does not stall on "Research company".
     step_keys = [p["key"] for e, p in events if e == "step"]
-    assert step_keys == ["research", "people", "writer", "approval"]
+    step_states = [p["state"] for e, p in events if e == "step"]
+    assert step_keys == ["research", "research", "people", "writer", "approval"]
+    assert step_states == ["start", "done", "done", "done", "done"]
 
 
 def test_stream_no_company_returns_help_reply():

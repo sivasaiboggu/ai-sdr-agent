@@ -57,7 +57,10 @@ def check_draft(draft: dict, person: dict | None = None, profile: dict | None = 
 
     if person and person.get("name"):
         first = person["name"].split()[0]
-        if first not in body:
+        # Word-boundary match: the old substring test passed "Al" because
+        # "Alchemyst" contains it, so a mail that never greets the person
+        # still cleared the personalisation check.
+        if not re.search(rf"\b{re.escape(first)}\b", body):
             issues.append(f"body does not greet {first} by name — not personalised")
 
     if profile:

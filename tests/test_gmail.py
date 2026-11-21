@@ -71,6 +71,11 @@ def test_sender_flag_off_never_sends_even_when_asked(monkeypatch):
 
 
 def test_sender_real_send_records_sent(monkeypatch, tmp_path):
+    # Isolated memory: the real sdr.db already holds a sent mail to this
+    # address from Nov 2026, and the sender's duplicate guard (rightly)
+    # blocks re-mailing it — this test is about the send path, so it
+    # runs against an empty database instead of the real one.
+    monkeypatch.setattr("backend.app.memory.DB_PATH", str(tmp_path / "gmail-sent.db"))
     monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 0)
     monkeypatch.setattr("backend.app.config.settings.gmail_send_enabled", True)
     monkeypatch.setattr("backend.app.config.settings.gmail_app_password", "app-pass-123")
@@ -81,7 +86,10 @@ def test_sender_real_send_records_sent(monkeypatch, tmp_path):
     assert result["sent"][0]["message_id"]
 
 
-def test_sender_smtp_failure_is_logged_not_claimed(monkeypatch):
+def test_sender_smtp_failure_is_logged_not_claimed(monkeypatch, tmp_path):
+    # Isolated memory — see test_sender_real_send_records_sent: the real
+    # sdr.db already holds a sent mail to this address.
+    monkeypatch.setattr("backend.app.memory.DB_PATH", str(tmp_path / "gmail-fail.db"))
     monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 0)
     monkeypatch.setattr("backend.app.config.settings.gmail_send_enabled", True)
     monkeypatch.setattr("backend.app.config.settings.gmail_app_password", "app-pass-123")
@@ -92,7 +100,9 @@ def test_sender_smtp_failure_is_logged_not_claimed(monkeypatch):
     assert result["sent"][0]["message_id"] is None
 
 
-def test_sender_blocked_draft_never_reaches_smtp(monkeypatch):
+def test_sender_blocked_draft_never_reaches_smtp(monkeypatch, tmp_path):
+    # Isolated memory — see test_sender_real_send_records_sent.
+    monkeypatch.setattr("backend.app.memory.DB_PATH", str(tmp_path / "gmail-blocked.db"))
     monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 0)
     monkeypatch.setattr("backend.app.config.settings.gmail_send_enabled", True)
     monkeypatch.setattr("backend.app.config.settings.gmail_app_password", "app-pass-123")

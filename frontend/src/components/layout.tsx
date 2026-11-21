@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '../lib/utils'
-import { SEED_CAMPAIGNS, fetchHealth, type Health } from '../lib/data'
+import { SEED_CAMPAIGNS, fetchHealth, useLiveData, type Health } from '../lib/data'
 
 /** Backend /health, polled once a minute. `undefined` = not checked yet,
  * `null` = unreachable. Status pills read this instead of assuming the
@@ -37,6 +37,15 @@ const NAV = [
 
 export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () => void; health: Health | null | undefined }) {
   const live = health !== undefined && health !== null
+  // Campaign shortcuts follow the same source as the pages: live memory
+  // when the backend answers, the seeded list while it is offline.
+  const { data } = useLiveData()
+  const sidebarCampaigns = data?.live
+    ? (data.coverage?.companies ?? []).map((c) => ({
+        name: c.name,
+        leads: (data.people ?? []).filter((p) => p.company.toLowerCase() === c.name.toLowerCase()).length,
+      }))
+    : SEED_CAMPAIGNS.map((c) => ({ name: c.name, leads: c.leads }))
   return (
     <>
       {open && <div className="fixed inset-0 z-30 bg-zinc-950/40 backdrop-blur-sm lg:hidden" onClick={onClose} />}
@@ -83,7 +92,7 @@ export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () 
           ))}
 
           <p className="eyebrow px-3 pb-1 pt-6">Active campaigns</p>
-          {SEED_CAMPAIGNS.map((c) => (
+          {sidebarCampaigns.map((c) => (
             <NavLink key={c.name} to="/campaigns" onClick={onClose}
               className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100/80 dark:text-zinc-400 dark:hover:bg-zinc-800/70">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-100 text-[10px] font-bold text-zinc-600 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700/60">

@@ -224,6 +224,12 @@ starting the frontend. Both Dockerfiles are build-tested (v0.9); a
 `.dockerignore` keeps venvs, `node_modules`, local `.db` files and `.env`
 out of the build context.
 
+## v0.9.3 — what changed (21 Nov 2026)
+
+- **Dashboard, Campaigns and Leads render live data** — the three main pages only ever showed the seeded Nov 2026 demo data, even with the backend running. They now read `GET /campaigns` + `GET /people` + `GET /coverage` through one cached fetch (60 s, invalidated after a chat run or an approval) and compute every stat, funnel, lead count and reply breakdown from real backend memory; the seeded data stays only as the offline fallback, still labelled "Demo data". The sidebar's campaign shortcuts follow the same source, and the reply donut takes a mix prop so the live breakdown renders. New `GET /people` endpoint; `/campaigns` mails now carry `reply_class` and `sent_at`.
+- **Senior logic review — real bugs fixed** — the reply classifier checked "interested" before negations, so "I'm not interested" and "please remove me" were classified as interested and scheduled a follow-up; negations and opt-outs are now checked first, and a bare "call" no longer counts as interest. The sender now re-checks for an already-sent mail at the send boundary, so two approvals in flight (or the same person twice in one batch) can no longer mail the same address twice — `/approve`'s pre-check alone had a race. Meta/Twilio redeliver webhooks when the first attempt is slow; message ids are now tracked and duplicates ignored instead of re-running the campaign. The quality gate matched the first-name greeting as a substring, so "Al" passed because "Alchemyst" contains it — it now matches on word boundaries. `/chat/stream` only ever emitted `research/start`, so the chat step indicator stalled on "Research company"; `research/done` is now emitted when the run finishes. Company-name parsing now strips "and send / and mail them / and approve" filler too.
+- **Tests** — 68 passed, 2 skipped (was 60 passed). The Gmail sender tests ran against the real `sdr.db` and wrote test rows into it; they now use scratch databases like the other sender tests.
+
 ## v0.9.2 — what changed (21 Nov 2026)
 
 - **Premium UI pass** — one design-token system across the dashboard

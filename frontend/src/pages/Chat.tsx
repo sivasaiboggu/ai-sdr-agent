@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Loader2, Send, Sparkles, User, WifiOff } from 'lucide-react'
-import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, sendChat, streamChat, type Draft } from '../lib/data'
+import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, invalidateLiveData, sendChat, streamChat, type Draft } from '../lib/data'
 import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
@@ -80,6 +80,10 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
           setDrafts(e.drafts ?? [])
           setApiDown(false)
           setApiStatus('online')
+          // The run just wrote new companies/people to backend memory —
+          // drop the cached live snapshot so Dashboard/Campaigns/Leads
+          // show the new campaign instead of the pre-run one.
+          invalidateLiveData()
           onToast(`${e.drafts?.length ?? 0} draft mails ready for review.`)
         } else if (e.kind === 'error') {
           streamFailed = true
@@ -97,6 +101,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
           const data = await sendChat(q)
           setApiDown(false)
           setApiStatus('online')
+          invalidateLiveData()
           setDrafts(data.drafts ?? [])
           setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
           onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)

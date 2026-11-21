@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, PenLine, Send } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
-import { approveCompany, SEED_DRAFTS, type Draft } from '../lib/data'
+import { approveCompany, invalidateLiveData, SEED_DRAFTS, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
@@ -37,6 +37,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
         return
       }
       setApproved((s) => new Set(s).add(d.to))
+      invalidateLiveData()
       if (status === 'draft (dry-run)') {
         onToast(`Draft to ${d.name} approved — dry-run only, nothing was really sent. Set GMAIL_SEND_ENABLED=true and a Gmail app password in the backend .env to send for real.`)
       } else {

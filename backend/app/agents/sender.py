@@ -57,6 +57,23 @@ def send_drafts(state: dict, dry_run: bool | None = None) -> dict:
                 mid = f"dry-run-{state['company']}-{i}"
                 status = "draft (dry-run)"
             else:
+                # Duplicate-send guard at the send boundary: /approve
+                # checks for already-sent mails before the graph runs,
+                # but two approves in flight (or the same person twice
+                # in one batch) can both pass that check. Re-check here,
+                # on the same connection that records the send, so a
+                # second attempt to the same address is blocked, never
+                # mailed twice.
+                already = conn.execute(
+                    "SELECT COUNT(*) FROM mails WHERE lower(company) = lower(?) "
+                    "AND lower(email) = lower(?) AND status = 'sent'",
+                    (state["company"], d["to"]),
+                ).fetchone()
+                if already and already[0]:
+                    status = "already sent (duplicate blocked)"
+                    mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""), d.get("subject", ""), d.get("body", ""), status, None)
+                    sent.append({**d, "status": status, "message_id": None})
+                    continue
                 # Enforce the gap from the last real send, however many
                 # blocked/failed drafts came between them.
                 if last_sent_at is not None:

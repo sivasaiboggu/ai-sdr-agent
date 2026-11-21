@@ -3,21 +3,25 @@ import { motion } from 'framer-motion'
 import { BadgeCheck, Mail, Search } from 'lucide-react'
 import { Avatar, Badge, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
 import LeadDrawer from '../components/LeadDrawer'
-import { SEED_PEOPLE, type Person } from '../lib/data'
+import { SEED_PEOPLE, useLiveData, type Person } from '../lib/data'
 import { cn } from '../lib/utils'
 import type { ToastTone } from '../App'
 
 export default function Leads({ query, onToast }: { query: string; onToast: (msg: string, tone?: ToastTone) => void }) {
+  const { data } = useLiveData()
+  const live = !!data?.live
+  // Live people when the backend answers, seeded demo data otherwise.
+  const allPeople = live ? (data?.people ?? []) : SEED_PEOPLE
   const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all')
   const [company, setCompany] = useState('All companies')
   const [selected, setSelected] = useState<Person | null>(null)
-  const companies = useMemo(() => ['All companies', ...Array.from(new Set(SEED_PEOPLE.map((p) => p.company)))], [])
+  const companies = useMemo(() => ['All companies', ...Array.from(new Set(allPeople.map((p) => p.company)))], [allPeople])
   const counts = useMemo(() => ({
-    all: SEED_PEOPLE.length,
-    verified: SEED_PEOPLE.filter((p) => p.verified).length,
-    unverified: SEED_PEOPLE.filter((p) => !p.verified).length,
-  }), [])
-  const list = SEED_PEOPLE.filter((p) => {
+    all: allPeople.length,
+    verified: allPeople.filter((p) => p.verified).length,
+    unverified: allPeople.filter((p) => !p.verified).length,
+  }), [allPeople])
+  const list = allPeople.filter((p) => {
     if (filter === 'verified' && !p.verified) return false
     if (filter === 'unverified' && p.verified) return false
     if (company !== 'All companies' && p.company !== company) return false
@@ -27,8 +31,10 @@ export default function Leads({ query, onToast }: { query: string; onToast: (msg
 
   return (
     <div>
-      <PageHeader title="Leads" subtitle="Founders, CXOs and hiring leads — verified emails only. Unverified people are never mailed." />
-      <DemoDataNotice what="leads" />
+      <PageHeader title="Leads" subtitle={live
+        ? `Live — ${allPeople.length} people in backend memory. Verified emails only are ever mailed.`
+        : 'Founders, CXOs and hiring leads — verified emails only. Unverified people are never mailed.'} />
+      {!live && <DemoDataNotice what="leads" />}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(['all', 'verified', 'unverified'] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}

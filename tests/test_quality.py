@@ -172,7 +172,11 @@ def test_api_chat_research_returns_quality_drafts():
         assert check_draft(d) == []
 
 
-def test_api_approve_validation_and_404():
+def test_api_approve_validation_and_404(monkeypatch, tmp_path):
+    # Isolated memory: /approve for an unknown company runs the graph,
+    # which writes the company row — without this the junk company lands
+    # in the real sdr.db on every test run.
+    monkeypatch.setattr("backend.app.memory.DB_PATH", str(tmp_path / "approve-404.db"))
     assert client.post("/approve", json={"company": ""}).status_code == 422
     r = client.post("/approve", json={"company": "some company that does not exist xyz"})
     assert r.status_code == 404
@@ -198,3 +202,30 @@ def test_api_approve_declined_sends_nothing():
     r = client.post("/approve", json={"company": "iion", "approve": False})
     assert r.status_code == 200
     assert r.json()["sent"] == []
+
+
+def test_quality_greeting_needs_real_first_name():
+    """Regression: the greeting check was a substring test, so 'Al'
+    passed because 'Alchemyst' contains it — a mail that never greets
+    the person still cleared the personalisation check."""
+    person = {"name": "Al Smith", "title": "CEO", "email": "al@example.com"}
+    profile = {"name": "Alchemyst AI", "role": "AI Engineer Intern",
+               "summary": "Context layer.", "sources": []}
+    body = ("I read about Alchemyst AI and the AI Engineer Intern role. "
+            + "I build agents with LangGraph and AuditMind every day. " * 12)
+    issues = check_draft({"to": "al@example.com", "subject": "Hello",
+                          "body": body}, person, profile)
+    assert any("does not greet Al" in i for i in issues)
+    greeted = {"to": "al@example.com", "subject": "Hello",
+               "body": "Hi Al,\n\n" + body}
+    assert not any("does not greet" in i for i in check_draft(greeted, person, profile))
+
+
+def test_normalize_company_strips_send_filler():
+    """'Research acme and send' used to keep 'and send' in the company
+    name; the filler list now covers the send/approve phrasings too."""
+    from backend.app.tools.search import normalize_company
+    assert normalize_company("acme and send") == "Acme"
+    assert normalize_company("acme and mail them") == "Acme"
+    assert normalize_company("acme and approve") == "Acme"
+    assert normalize_company("Research iion and draft mails") == "iion"

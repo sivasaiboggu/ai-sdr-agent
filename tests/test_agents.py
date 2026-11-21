@@ -21,11 +21,65 @@ def test_people_verified_only():
 def test_sender_gap_is_5_minutes():
     assert gap_seconds() == 300
 
+
+def test_sender_never_mails_same_address_twice(monkeypatch, tmp_path):
+    """Regression: /approve checks for already-sent mails before the
+    graph runs, but two approves in flight (or the same person twice in
+    one batch) can both pass that check — the sender must block the
+    second send at the boundary, on the connection that records it."""
+    from backend.app import memory as mem
+    from backend.app.agents import sender as sender_agent
+
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "sender-dedupe.db"))
+    monkeypatch.setattr("backend.app.config.settings.gmail_send_enabled", True)
+    monkeypatch.setattr("backend.app.config.settings.send_gap_seconds", 0)
+    calls = []
+    monkeypatch.setattr("backend.app.gmail.send_mail",
+                        lambda *a, **k: calls.append(a[0]) or "<test-id@sdr-agent.local>")
+
+    profile = {"name": "iion", "role": "AI Engineering Intern (Agentic Workflows)",
+               "summary": "Ad platform for gaming.", "sources": ["https://www.iion.io/careers"]}
+    person = {"name": "Wout van Damme", "title": "Co-Founder", "email": "wout@iion.io"}
+    draft = writer.draft_mail("iion", person, profile)
+
+    # Already mailed once before this batch.
+    conn = mem.connect()
+    try:
+        mem.save_mail(conn, "iion", "Wout van Damme", "wout@iion.io",
+                      draft["subject"], draft["body"], "sent", "<earlier-id>")
+    finally:
+        conn.close()
+    result = sender_agent.send_drafts({"company": "iion", "drafts": [draft]}, dry_run=False)
+    assert result["sent"][0]["status"] == "already sent (duplicate blocked)"
+    assert calls == []
+
+    # Same person twice in one batch: first sends, second is blocked.
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "sender-dedupe2.db"))
+    result = sender_agent.send_drafts(
+        {"company": "iion", "drafts": [draft, dict(draft)]}, dry_run=False)
+    assert result["sent"][0]["status"] == "sent"
+    assert result["sent"][1]["status"] == "already sent (duplicate blocked)"
+    assert calls == ["wout@iion.io"]
+
 def test_tracker_classification():
     assert tracker.classify_reply("Let's schedule a call this week") == "interested"
     assert tracker.classify_reply("550 5.1.1 The email account does not exist") == "bounce"
     assert tracker.classify_reply("I am out of office on leave") == "out of office"
     assert tracker.classify_reply("We are not hiring right now") == "not now"
+
+
+def test_tracker_negation_is_not_interest():
+    """Regression: 'not interested' contains 'interested', and the old
+    order checked interest first — so a rejection was classified as
+    interested and a follow-up was scheduled for someone who opted out."""
+    assert tracker.classify_reply("Thanks, but I'm not interested right now") == "not now"
+    assert tracker.classify_reply("No thanks — please remove me from your list") == "not now"
+    assert tracker.classify_reply("Please unsubscribe me") == "not now"
+    # A bare "call" is not interest either: "can't take a call" used to
+    # classify as interested.
+    assert tracker.classify_reply("Sorry, I can't take a call this month") != "interested"
+    assert tracker.classify_reply("Let's book a call on Thursday") == "interested"
+    assert tracker.classify_reply("Sounds good — send your resume over") == "interested"
 
 
 def test_tracker_records_no_placeholder_learning(monkeypatch, tmp_path):

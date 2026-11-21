@@ -34,7 +34,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.9.2"
+APP_VERSION = "0.9.3"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -139,7 +139,10 @@ async def chat_stream(req: ChatRequest):
         except Exception as e:
             yield _sse("error", {"detail": f"Agent run failed: {e}"})
             return
-        for key in ("people", "writer", "approval"):
+        # The run finished, so research is done too: the old code only
+        # ever emitted research/start, and the chat step indicator stalled
+        # on "Research company" until the reply streamed.
+        for key in ("research", "people", "writer", "approval"):
             yield _sse("step", {"key": key, "state": "done"})
         reply = (
             f"Researched {result['profile']['name']}: {result['profile']['summary']} "
@@ -239,13 +242,35 @@ def campaigns():
         conn = mem.connect()
         try:
             companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-            mails = conn.execute("SELECT company, recipient, email, subject, status FROM mails ORDER BY id DESC LIMIT 50").fetchall()
+            mails = conn.execute("SELECT company, recipient, email, subject, status, reply_class, sent_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
         finally:
             conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read campaign memory: {e}")
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],
-            "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "status": m[4]} for m in mails]}
+            "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "status": m[4],
+                       "reply_class": m[5], "sent_at": m[6]} for m in mails]}
+
+
+@router.get("/people")
+def people():
+    """Every person the agent found, verified and unverified — the Leads
+    page renders this live instead of its seeded list when the backend
+    answers. Read-only; nothing here is mailed (only verified people
+    with an email are mailable, see /campaigns)."""
+    try:
+        conn = mem.connect()
+        try:
+            rows = conn.execute(
+                "SELECT company, name, title, email, verified, score, linkedin "
+                "FROM people ORDER BY company, score DESC"
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not read people: {e}")
+    return {"people": [{"company": r[0], "name": r[1], "title": r[2], "email": r[3] or "",
+                        "verified": bool(r[4]), "score": r[5], "linkedin": r[6]} for r in rows]}
 
 
 @router.websocket("/ws")

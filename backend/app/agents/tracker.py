@@ -12,7 +12,21 @@ def classify_reply(text: str) -> str:
         return "bounce"
     if "out of office" in t or "out-of-office" in t or "on leave" in t:
         return "out of office"
-    if any(w in t for w in ["let's talk", "let us talk", "schedule", "call", "interview", "interested", "sounds good", "send your resume", "share your"]):
+    # Negations and opt-outs BEFORE the "interested" check: the old order
+    # matched "interested" first, so "I'm not interested" and "no thanks,
+    # remove me" were both classified as interested — and a follow-up was
+    # scheduled for someone who had just opted out. A bare "call" was an
+    # interested trigger too, so "I can't take a call" also read as
+    # interested; only a call that is actually being arranged counts now.
+    if any(w in t for w in ["not interested", "no thanks", "not a fit", "unsubscribe",
+                            "remove me", "do not contact", "don't contact",
+                            "stop emailing", "please stop", "no longer interested"]):
+        return "not now"
+    if any(w in t for w in ["let's talk", "let us talk", "schedule a call", "book a call",
+                            "jump on a call", "hop on a call", "schedule a meeting",
+                            "interview", "interested", "sounds good",
+                            "send your resume", "send me your", "share your",
+                            "happy to chat", "let's connect", "keen to"]):
         return "interested"
     if any(w in t for w in ["not hiring", "no opening", "not now", "not at the moment", "no vacancy"]):
         return "not now"

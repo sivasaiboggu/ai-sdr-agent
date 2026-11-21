@@ -252,9 +252,21 @@ def save_company(conn, name, domain="", summary="", sources=None):
     conn.commit()
 
 def save_person(conn, company, name, title, email, verified, score, linkedin=""):
+    # A missing email is stored as NULL, not "": SQLite (and Postgres)
+    # treat NULLs as distinct in a UNIQUE constraint, so several
+    # unverified people at one company no longer overwrite each other —
+    # the old "" collided on UNIQUE(company, email) and silently kept
+    # only the last unverified person per company. NULL never conflicts,
+    # though, so an email-less re-save is replaced by (company, name)
+    # explicitly instead of accumulating a duplicate row per run.
+    if not email:
+        conn.execute(
+            "DELETE FROM people WHERE company = ? AND name = ? AND (email IS NULL OR email = '')",
+            (company, name),
+        )
     conn.execute(
         "INSERT OR REPLACE INTO people(company, name, title, email, verified, score, linkedin, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        (company, name, title, email, 1 if verified else 0, score, linkedin, time.time()),
+        (company, name, title, email or None, 1 if verified else 0, score, linkedin, time.time()),
     )
     conn.commit()
 

@@ -64,7 +64,6 @@ def test_whatsapp_yes_sends_when_gmail_enabled(monkeypatch, tmp_path):
 
 def test_whatsapp_help():
     assert "research" in handle_text("+919573719115", "help").lower()
-
 def test_whatsapp_research_iion():
     reply = handle_text("+919573719115", "research iion")
     assert "iion" in reply.lower()
@@ -78,3 +77,41 @@ def test_whatsapp_drafts_then_no():
 
 def test_whatsapp_unknown():
     assert "help" in handle_text("+919573719115", "blabla").lower()
+
+
+def _cloud_body(message_id, text, sender=SENDER):
+    return {"entry": [{"changes": [{"value": {"messages": [
+        {"from": sender, "id": message_id, "text": {"body": text}}]}}]}]}
+
+
+def test_webhook_redelivery_is_ignored(monkeypatch):
+    """Meta/Twilio redeliver a webhook when the first attempt is slow.
+    The same message id must be handled once — a redelivered 'research'
+    must not re-run the campaign or send the reply twice."""
+    import backend.app.whatsapp.webhook as wa_mod
+
+    wa_mod._SEEN_MESSAGE_IDS.clear()
+    calls = []
+    monkeypatch.setattr(wa_mod, "send_whatsapp",
+                        lambda to, text: calls.append((to, text)))
+    body = _cloud_body("wamid.dedupe-1", "help")
+    r1 = client.post("/whatsapp/webhook", json=body)
+    r2 = client.post("/whatsapp/webhook", json=body)
+    assert r1.status_code == 200 and r1.json()["status"] == "ok"
+    assert r2.status_code == 200 and r2.json()["status"] == "duplicate"
+    assert len(calls) == 1
+
+
+def test_webhook_without_id_is_always_processed(monkeypatch):
+    """A message with no id can't be deduped — it must still be handled
+    (twice, if delivered twice), never silently dropped."""
+    import backend.app.whatsapp.webhook as wa_mod
+
+    wa_mod._SEEN_MESSAGE_IDS.clear()
+    calls = []
+    monkeypatch.setattr(wa_mod, "send_whatsapp",
+                        lambda to, text: calls.append((to, text)))
+    body = _cloud_body(None, "help")
+    assert client.post("/whatsapp/webhook", json=body).json()["status"] == "ok"
+    assert client.post("/whatsapp/webhook", json=body).json()["status"] == "ok"
+    assert len(calls) == 2

@@ -61,7 +61,9 @@ def normalize_company(text: str) -> str:
         if key in low:
             return KNOWN_COMPANIES[key]["name"]
     # Strip trailing filler words from a chat command.
-    for filler in [" and draft mails", " and draft", " draft mails", " please"]:
+    for filler in [" and draft mails", " and draft", " draft mails", " please",
+                   " and send", " and mail them", " and send them",
+                   " and email them", " and approve"]:
         low = low.replace(filler, "")
     return low.strip().title() or text.strip()
 

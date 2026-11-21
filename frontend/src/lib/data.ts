@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 export type Person = {
   name: string
   title: string
@@ -196,7 +198,66 @@ export function normalizeCompanyName(name: string): string {
 
 export type CampaignsResponse = {
   companies: { name: string; summary: string }[]
-  mails: { company: string; recipient: string; email: string; subject: string; status: string }[]
+  mails: { company: string; recipient: string; email: string; subject: string; status: string; reply_class: string | null; sent_at: number | null }[]
+}
+
+export async function fetchPeople(): Promise<Person[] | null> {
+  try {
+    const r = await fetch(apiUrl('/people'))
+    if (!r.ok) return null
+    const body = await r.json()
+    return (body.people ?? []) as Person[]
+  } catch {
+    return null
+  }
+}
+
+export type LiveData = {
+  /** True when the backend answered at least one read — the pages then
+   * render real memory instead of the seeded demo data. */
+  live: boolean
+  campaigns: CampaignsResponse | null
+  people: Person[] | null
+  coverage: CoverageResponse | null
+}
+
+/** One combined fetch for the pages that render live data. Cached for
+ * 60s so navigating between Dashboard / Campaigns / Leads / Sidebar
+ * does not refetch the same three endpoints on every mount; call
+ * `invalidateLiveData()` after a chat run or an approval so the next
+ * page shows the new campaign instead of the cached snapshot. */
+let liveCache: { at: number; data: LiveData } | null = null
+
+export async function fetchLiveData(): Promise<LiveData> {
+  if (liveCache && Date.now() - liveCache.at < 60_000) return liveCache.data
+  const [campaigns, people, coverage] = await Promise.all([
+    fetchCampaigns(), fetchPeople(), fetchCoverage(),
+  ])
+  const data: LiveData = {
+    live: campaigns !== null || people !== null || coverage !== null,
+    campaigns, people, coverage,
+  }
+  liveCache = { at: Date.now(), data }
+  return data
+}
+
+export function invalidateLiveData() {
+  liveCache = null
+}
+
+export function useLiveData() {
+  const [data, setData] = useState<LiveData | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let alive = true
+    fetchLiveData().then((d) => {
+      if (!alive) return
+      setData(d)
+      setLoading(false)
+    })
+    return () => { alive = false }
+  }, [])
+  return { data, loading }
 }
 
 export type ChatResponse = {
