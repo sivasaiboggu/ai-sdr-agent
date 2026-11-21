@@ -5,6 +5,7 @@ installed (or the graph fails), `run_campaign` falls back to the same steps
 in order, so the CLI / chat / WhatsApp flows keep working.
 """
 from backend.app.agents import research, people, writer, sender, tracker
+from backend.app.tools.search import normalize_company
 
 def _sequential(state: dict, approve: bool, dry_run: bool) -> dict:
     """The same pipeline without LangGraph, in the same order."""
@@ -18,6 +19,14 @@ def _sequential(state: dict, approve: bool, dry_run: bool) -> dict:
 
 def run_campaign(company: str, approve: bool = True, dry_run: bool = True) -> dict:
     company = (company or "").strip()
+    if not company:
+        raise ValueError("company is required — e.g. run_campaign('iion')")
+    # Canonical name first: chat commands arrive as "iion and draft mails"
+    # and every agent saves state["company"] verbatim — without this, the
+    # people agent stored rows under "iion and draft mails" that no
+    # campaign, lead filter or dedupe query ever matched again (the four
+    # dirty rows cleaned out of sdr.db in round 8 came from exactly this).
+    company = normalize_company(company)
     if not company:
         raise ValueError("company is required — e.g. run_campaign('iion')")
     state: dict = {"company": company, "replies": []}

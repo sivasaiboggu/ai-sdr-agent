@@ -3,13 +3,27 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, PenLine, Send } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
-import { approveCompany, invalidateLiveData, SEED_DRAFTS, type Draft } from '../lib/data'
+import { approveCompany, invalidateLiveData, SEED_DRAFTS, useLiveData, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
 export default function Drafts({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
   const navigate = useNavigate()
-  const [open, setOpen] = useState<string | null>(SEED_DRAFTS[0]?.to ?? null)
+  const { data } = useLiveData()
+  const live = !!data?.live
+  // Live drafts when the backend answers — the mails it actually wrote,
+  // waiting for approval — seeded demo drafts only while it is down.
+  // 'ready-to-send' counts: it is the state a mail sits in after passing
+  // the quality gate, before approval. Drafts used to render the seeds
+  // even with the backend live, so approving one approved a stale copy.
+  const liveDrafts: Draft[] = live
+    ? (data?.campaigns?.mails ?? [])
+        .filter((m) => m.status.startsWith('draft') || m.status === 'ready-to-send')
+        .map((m) => ({ to: m.email, name: m.recipient, subject: m.subject, body: m.body, company: m.company }))
+    : []
+  const drafts = live ? liveDrafts : SEED_DRAFTS
+  const [open, setOpen] = useState<string | null>(null)
+  const openTo = open ?? drafts[0]?.to ?? null
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState<string | null>(null)
 
@@ -56,10 +70,12 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
 
   return (
     <div>
-      <PageHeader title="Draft mails" subtitle="Personalised from real research. Nothing sends without your approval — approve a draft and the sender takes it from there."
+      <PageHeader title="Draft mails" subtitle={live
+        ? `${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'} waiting in backend memory — approve one and the sender takes it from there.`
+        : 'Personalised from real research. Nothing sends without your approval — approve a draft and the sender takes it from there.'}
         actions={<Badge tone="warning"><Clock className="h-3 w-3" /> Approval required</Badge>} />
-      <DemoDataNotice what="drafts" />
-      {SEED_DRAFTS.length === 0 && (
+      {!live && <DemoDataNotice what="drafts" />}
+      {drafts.length === 0 && (
         <EmptyState
           icon={Mail}
           title="No drafts waiting"
@@ -68,8 +84,8 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
         />
       )}
       <div className="space-y-3">
-        {SEED_DRAFTS.map((d, i) => {
-          const isOpen = open === d.to
+        {drafts.map((d, i) => {
+          const isOpen = openTo === d.to
           const isApproved = approved.has(d.to)
           return (
             <motion.div key={d.to} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card overflow-hidden transition-shadow hover:shadow-soft">

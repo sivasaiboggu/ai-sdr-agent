@@ -77,7 +77,12 @@ export default function Campaigns({ query }: { query: string }) {
           summary: c.summary,
           status: c.status,
           leads: people.length,
-          drafts: mails.filter((m) => m.status.startsWith('draft')).length,
+          // 'ready-to-send' is a draft too: it is the state the sender
+          // leaves a mail in when it passes the quality gate but has not
+          // been approved/sent yet. Counting only 'draft…' hid the four
+          // live iion drafts and showed Drafts: 0 on a campaign that had
+          // four waiting.
+          drafts: mails.filter((m) => m.status.startsWith('draft') || m.status === 'ready-to-send').length,
           sent,
           replies,
           replyRate: sent > 0 ? Math.round((replies / sent) * 100) : 0,

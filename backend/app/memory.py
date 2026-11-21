@@ -271,6 +271,20 @@ def save_person(conn, company, name, title, email, verified, score, linkedin="")
     conn.commit()
 
 def save_mail(conn, company, recipient, email, subject, body, status="draft", message_id=None):
+    # Idempotent for everything except a real send: every dry-run and
+    # every re-run of a campaign used to append an identical row, so the
+    # real sdr.db grew to 205 duplicate iion mails for one subject. A
+    # re-save of the same non-sent mail now returns the existing row
+    # instead of piling up. 'sent' stays append-only — each real send is
+    # its own event (and the sender already blocks re-mailing an address).
+    if status != "sent":
+        existing = conn.execute(
+            "SELECT id FROM mails WHERE company = ? AND email = ? AND subject = ? "
+            "AND body = ? AND status = ? ORDER BY id ASC LIMIT 1",
+            (company, email, subject, body, status),
+        ).fetchone()
+        if existing:
+            return existing[0]
     sql = (
         "INSERT INTO mails(company, recipient, email, subject, body, status, message_id, sent_at) VALUES (?,?,?,?,?,?,?,?)"
     )

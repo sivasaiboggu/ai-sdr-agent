@@ -45,6 +45,25 @@ def test_chat_validation():
     assert client.post("/api/chat", json={"message": "x" * 1001}).status_code == 422
 
 
+def test_parse_company_strips_trailing_action_phrases():
+    """Regression: the chat suggestion chips read 'Research iion and draft
+    mails', and the old parser returned the whole tail as the company —
+    'iion and draft mails' — which the people agent then saved verbatim,
+    so those leads matched no campaign. The company name comes back clean."""
+    from backend.app.api import _parse_company
+
+    assert _parse_company("Research iion and draft mails") == "iion"
+    assert _parse_company("Research Alchemyst AI and draft mails") == "Alchemyst AI"
+    assert _parse_company("Research Drivetrain and draft mail") == "Drivetrain"
+    assert _parse_company("draft mails for Drivetrain") == "Drivetrain"
+    assert _parse_company("mail founders of Discover Dollar") == "Discover Dollar"
+    assert _parse_company("Research Acme please") == "Acme"
+    # A real 'and' inside a company name survives the strip.
+    assert _parse_company("Research Smith and Co and draft mails") == "Smith and Co"
+    assert _parse_company("hello there") is None
+    assert _parse_company("Research ") is None
+
+
 def test_cors_allows_configured_dev_origin():
     r = client.options(
         "/api/chat",
@@ -102,6 +121,8 @@ def test_campaigns_mails_carry_reply_class_and_sent_at(monkeypatch, tmp_path):
     assert mails[0]["sent_at"] is None and mails[0]["reply_class"] is None
     assert mails[1]["status"] == "sent"
     assert isinstance(mails[1]["sent_at"], float)
+    # The Drafts page renders live drafts, so it needs the body too.
+    assert mails[0]["body"] == "body" and mails[1]["body"] == "body"
 
 
 def test_unverified_people_do_not_overwrite_each_other(monkeypatch, tmp_path):

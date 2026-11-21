@@ -1,4 +1,4 @@
-"""FastAPI — chat-first API + WebSocket live progress.
+"""FastAPI — chat-first API + SSE live progress.
 POST /chat {"message": "Research iion and draft mails"} -> runs the graph,
 returns profile / people / drafts, and waits for approval before sending.
 POST /chat/stream -> same run, but Server-Sent Events: `step` events as the
@@ -6,7 +6,6 @@ pipeline advances, then the reply streamed word by word, then `done` with
 the drafts. The dashboard uses it for the live typing effect in Agent chat.
 POST /approve {"company": "...", "approve": true} -> sends the drafts.
 GET  /campaigns -> saved companies / people / mails from memory.
-WS   /ws -> live agent progress events.
 
 Every route is also served under `/api` (`/api/chat`, `/api/campaigns`,
 ...) — the dashboard calls `/api/*` (dev proxy and `VITE_API_URL` builds),
@@ -23,7 +22,7 @@ quality gate is blocked by the sender instead of mailed.
 import asyncio
 import json
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -34,7 +33,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.9.3"
+APP_VERSION = "0.9.4"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -81,12 +80,25 @@ def health():
 
 
 def _parse_company(message: str) -> str | None:
-    """Plain-language parsing: 'research <company>' / 'draft mails for <company>'."""
+    """Plain-language parsing: 'research <company>' / 'draft mails for <company>'.
+    The company name itself is returned clean: the chat suggestion chips
+    read 'Research iion and draft mails', and the old parser returned the
+    whole tail — 'iion and draft mails' — as the company, which the people
+    agent then saved verbatim (see graph.run_campaign, which now also
+    normalises). Trailing action phrases are stripped as suffixes, so a
+    real 'and' inside a company name ('Smith and Co') survives."""
     msg = message.lower()
     for token in ["research ", "draft mails for ", "find leads at ", "mail founders of "]:
         if token in msg:
             idx = msg.find(token)
             company = message[idx + len(token):].strip()
+            low = company.lower()
+            for suffix in [" and draft mails", " and draft mail", " and send mails",
+                           " and send mail", " and send", " and mail them",
+                           " and email them", " and approve", " please"]:
+                if low.endswith(suffix):
+                    company = company[: -len(suffix)].strip()
+                    low = company.lower()
             return company or None
     return None
 
@@ -242,14 +254,14 @@ def campaigns():
         conn = mem.connect()
         try:
             companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-            mails = conn.execute("SELECT company, recipient, email, subject, status, reply_class, sent_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
+            mails = conn.execute("SELECT company, recipient, email, subject, body, status, reply_class, sent_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
         finally:
             conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read campaign memory: {e}")
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],
-            "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "status": m[4],
-                       "reply_class": m[5], "sent_at": m[6]} for m in mails]}
+            "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "body": m[4], "status": m[5],
+                       "reply_class": m[6], "sent_at": m[7]} for m in mails]}
 
 
 @router.get("/people")
@@ -271,13 +283,6 @@ def people():
         raise HTTPException(status_code=502, detail=f"Could not read people: {e}")
     return {"people": [{"company": r[0], "name": r[1], "title": r[2], "email": r[3] or "",
                         "verified": bool(r[4]), "score": r[5], "linkedin": r[6]} for r in rows]}
-
-
-@router.websocket("/ws")
-async def ws(ws: WebSocket):
-    await ws.accept()
-    await ws.send_json({"event": "connected", "message": "AI SDR Agent live — send a chat message to start a campaign."})
-    await ws.close()
 
 
 # --- WhatsApp (free Cloud API / Twilio sandbox, see README) ---

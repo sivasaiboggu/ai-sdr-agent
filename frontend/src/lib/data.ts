@@ -198,7 +198,7 @@ export function normalizeCompanyName(name: string): string {
 
 export type CampaignsResponse = {
   companies: { name: string; summary: string }[]
-  mails: { company: string; recipient: string; email: string; subject: string; status: string; reply_class: string | null; sent_at: number | null }[]
+  mails: { company: string; recipient: string; email: string; subject: string; body: string; status: string; reply_class: string | null; sent_at: number | null }[]
 }
 
 export async function fetchPeople(): Promise<Person[] | null> {

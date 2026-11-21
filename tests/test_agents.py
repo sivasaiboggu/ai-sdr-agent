@@ -61,6 +61,30 @@ def test_sender_never_mails_same_address_twice(monkeypatch, tmp_path):
     assert result["sent"][1]["status"] == "already sent (duplicate blocked)"
     assert calls == ["wout@iion.io"]
 
+def test_graph_normalises_dirty_company_name(monkeypatch, tmp_path):
+    """Regression: a chat run of 'Research iion and draft mails' saved
+    people under the company name 'iion and draft mails' — the research
+    agent normalised (via search_company) but the people/sender agents
+    saved state['company'] verbatim, so those leads matched no campaign,
+    filter or dedupe query. run_campaign now canonicalises the name at
+    the entry point, so every agent writes 'iion'."""
+    from backend.app import memory as mem
+    from backend.app.graph import run_campaign
+
+    monkeypatch.setattr(mem, "DB_PATH", str(tmp_path / "graph-norm.db"))
+    monkeypatch.setattr("backend.app.tools.search._live_search", lambda q: [])
+    result = run_campaign("iion and draft mails", approve=False)
+    assert result["profile"]["name"] == "iion"
+    assert result["mailable"], "known iion people should be found"
+    conn = mem.connect()
+    try:
+        companies = [r[0] for r in conn.execute("SELECT company FROM people").fetchall()]
+    finally:
+        conn.close()
+    assert companies, "people should be saved"
+    assert all(c == "iion" for c in companies), f"dirty company names saved: {companies}"
+
+
 def test_tracker_classification():
     assert tracker.classify_reply("Let's schedule a call this week") == "interested"
     assert tracker.classify_reply("550 5.1.1 The email account does not exist") == "bounce"
