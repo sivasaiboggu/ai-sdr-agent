@@ -93,22 +93,6 @@ export const SEED_REPLIES: ReplyItem[] = [
   { id: 'r2', from: 'Mail Delivery Subsystem', company: 'iion', subject: 'Delivery Status Notification', classification: 'bounce', snippet: '550 5.1.1 — the email account jobs@iion.io does not exist. Do not resend to this address.', receivedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
 ]
 
-export const REPLY_MIX_COLORS: Record<ReplyItem['classification'], string> = {
-  interested: '#10b981',
-  'not-now': '#f59e0b',
-  bounce: '#f43f5e',
-  'out-of-office': '#6366f1',
-}
-
-/** Reply breakdown, counted from the logged replies above — never
- * hardcoded. With only the one real bounce logged, the donut shows a
- * single slice, which is the honest picture until real replies arrive. */
-export const REPLY_MIX = (['interested', 'not-now', 'bounce', 'out-of-office'] as const).map((name) => ({
-  name: name === 'not-now' ? 'Not now' : name === 'out-of-office' ? 'Out of office' : name[0]!.toUpperCase() + name.slice(1),
-  value: SEED_REPLIES.filter((r) => r.classification === name).length,
-  color: REPLY_MIX_COLORS[name],
-}))
-
 export const AGENT_STEPS = [
   { key: 'research', label: 'Research company', detail: 'Web, careers page, LinkedIn — with cited sources' },
   { key: 'people', label: 'Find verified people', detail: 'Apollo + LinkedIn, verified emails only' },
@@ -208,41 +192,56 @@ export type LiveData = {
   coverage: CoverageResponse | null
 }
 
-/** One combined fetch for the pages that render live data. Cached for
- * 60s so navigating between Dashboard / Campaigns / Leads / Sidebar
- * does not refetch the same three endpoints on every mount; call
- * `invalidateLiveData()` after a chat run or an approval so the next
- * page shows the new campaign instead of the cached snapshot. */
+// Read once per snapshot, including when multiple views mount together.
+const liveDataListeners = new Set<() => void>()
 let liveCache: { at: number; data: LiveData } | null = null
+let liveRequest: Promise<LiveData> | null = null
 
-export async function fetchLiveData(): Promise<LiveData> {
-  if (liveCache && Date.now() - liveCache.at < 60_000) return liveCache.data
-  const [campaigns, people, coverage] = await Promise.all([
-    fetchCampaigns(), fetchPeople(), fetchCoverage(),
-  ])
-  const data: LiveData = {
-    live: campaigns !== null || people !== null || coverage !== null,
-    campaigns, people, coverage,
-  }
-  liveCache = { at: Date.now(), data }
-  return data
+function cachedLiveData() {
+  return liveCache && Date.now() - liveCache.at < 60_000 ? liveCache.data : null
+}
+
+export function fetchLiveData(): Promise<LiveData> {
+  const cached = cachedLiveData()
+  if (cached) return Promise.resolve(cached)
+  if (liveRequest) return liveRequest
+  const request = Promise.all([fetchCampaigns(), fetchPeople(), fetchCoverage()])
+    .then(([campaigns, people, coverage]) => {
+      const data = { live: campaigns !== null || people !== null || coverage !== null, campaigns, people, coverage }
+      if (liveRequest === request) {
+        liveCache = { at: Date.now(), data }
+        liveRequest = null
+      }
+      return data
+    })
+  liveRequest = request
+  return request
 }
 
 export function invalidateLiveData() {
   liveCache = null
+  liveRequest = null
+  liveDataListeners.forEach((refresh) => refresh())
 }
 
 export function useLiveData() {
-  const [data, setData] = useState<LiveData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(cachedLiveData)
+  const [loading, setLoading] = useState(() => !cachedLiveData())
   useEffect(() => {
-    let alive = true
-    fetchLiveData().then((d) => {
-      if (!alive) return
-      setData(d)
-      setLoading(false)
-    })
-    return () => { alive = false }
+    let active = true
+    let latest: Promise<LiveData>
+    function refresh() {
+      const request = fetchLiveData()
+      latest = request
+      void request.then((snapshot) => {
+        if (!active || request !== latest) return
+        setData(snapshot)
+        setLoading(false)
+      })
+    }
+    liveDataListeners.add(refresh)
+    refresh()
+    return () => { active = false; liveDataListeners.delete(refresh) }
   }, [])
   return { data, loading }
 }

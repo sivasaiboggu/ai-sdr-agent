@@ -1,132 +1,120 @@
-import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, PenLine, Send } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
+import { useRef, useState } from 'react'
+import { Check, Clock, Mail, PenLine, Send } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { ActionLink, Avatar, Badge, Button, CardHeader, DemoDataNotice, EmptyState, LoadingState, PageHeader } from '../components/ui'
 import { approveCompany, invalidateLiveData, SEED_DRAFTS, useLiveData, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
-import { cn } from '../lib/utils'
 
-export default function Drafts({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
+function draftKey(draft: Draft) {
+  return `${draft.company ?? ''}:${draft.to}`
+}
+
+export default function Drafts({ onToast }: { onToast: (message: string, tone?: ToastTone) => void }) {
   const navigate = useNavigate()
-  const { data } = useLiveData()
-  const live = !!data?.live
-  // Live drafts when the backend answers — the mails it actually wrote,
-  // waiting for approval — seeded demo drafts only while it is down.
-  // 'ready-to-send' counts: it is the state a mail sits in after passing
-  // the quality gate, before approval. Drafts used to render the seeds
-  // even with the backend live, so approving one approved a stale copy.
-  const liveDrafts: Draft[] = live
-    ? (data?.campaigns?.mails ?? [])
-        .filter((m) => m.status.startsWith('draft') || m.status === 'ready-to-send')
-        .map((m) => ({ to: m.email, name: m.recipient, subject: m.subject, body: m.body, company: m.company }))
-    : []
-  const drafts = live ? liveDrafts : SEED_DRAFTS
-  const [open, setOpen] = useState<string | null>(null)
-  const openTo = open ?? drafts[0]?.to ?? null
+  const [params, setParams] = useSearchParams()
+  const { data, loading } = useLiveData()
+  const live = Boolean(data?.live)
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState<string | null>(null)
+  const inFlight = useRef(false)
+  const company = params.get('company')
+  const selectedTo = params.get('to')
+  const receiving = data?.campaigns?.mails ?? []
+  const allDrafts: Draft[] = live ? receiving
+    .filter((mail) => mail.status.startsWith('draft') || mail.status === 'ready-to-send')
+    .map((mail) => ({ to: mail.email, name: mail.recipient, subject: mail.subject, body: mail.body, company: mail.company }))
+    : SEED_DRAFTS
+  const drafts = company ? allDrafts.filter((draft) => draft.company?.toLowerCase() === company.toLowerCase()) : allDrafts
+  const selected = drafts.find((draft) => draft.to === selectedTo) ?? drafts[0]
+  const isApproved = selected && approved.has(draftKey(selected))
 
-  /** Rewriting goes through Agent chat — the old "Edit draft" button
-   * only showed a toast claiming an edit mode that did not exist.
-   * This queues a real rewrite request the agent runs on arrival. */
-  function rewriteInChat(d: Draft) {
+  function rewrite(draft: Draft) {
     try {
-      window.sessionStorage.setItem('sdr-pending-chat',
-        `Rewrite the draft mail for ${d.name} at ${d.company ?? 'this company'} — keep the hook from the research, tighten the wording, no new facts.`)
-    } catch { /* session storage unavailable — chat still opens */ }
+      sessionStorage.setItem('sdr-pending-chat',
+        `Rewrite the draft mail for ${draft.name} at ${draft.company ?? 'this company'} — keep the hook from the research, tighten the wording, no new facts.`)
+    } catch { /* Storage is optional. */ }
     navigate('/chat')
   }
 
-  async function approve(d: Draft) {
-    if (sending) return
-    setSending(d.to)
+  async function approve(draft: Draft) {
+    if (inFlight.current || !draft.company) return
+    inFlight.current = true
+    setSending(draftKey(draft))
     try {
-      const res = await approveCompany(d.company ?? '')
-      const status = res.sent.find((s) => s.to === d.to)?.status ?? 'queued'
-      // Only mark a draft approved when the backend actually queued/sent
-      // it. A failed or blocked send must never wear the Approved badge.
-      if (status.startsWith('failed:') || status.startsWith('blocked:')) {
-        onToast(`Approval reached the backend but the mail did NOT go out — ${status}. Nothing was marked approved; fix the cause and try again.`, 'error')
-        return
+      const result = await approveCompany(draft.company)
+      const accepted = result.sent.filter(({ status }) => status === 'sent' || status === 'draft (dry-run)')
+      const sent = accepted.filter(({ status }) => status === 'sent').length
+      const dryRuns = accepted.length - sent
+      const unsent = result.sent.length - accepted.length
+      if (accepted.length) {
+        setApproved((current) => new Set([...current, ...accepted.map(({ to }) => draftKey({ ...draft, to }))]))
+        invalidateLiveData()
       }
-      setApproved((s) => new Set(s).add(d.to))
-      invalidateLiveData()
-      if (status === 'draft (dry-run)') {
-        onToast(`Draft to ${d.name} approved — dry-run only, nothing was really sent. Set GMAIL_SEND_ENABLED=true and a Gmail app password in the backend .env to send for real.`)
-      } else {
-        onToast(`Draft to ${d.name} approved — ${status}. It sends with the 5-minute gap.`)
-      }
-    } catch (e) {
-      // Backend not running (or the approval failed): say so plainly and
-      // do NOT mark the draft approved — the badge must never claim a mail
-      // was queued when the backend never confirmed it. The user can retry
-      // once the backend is reachable.
-      onToast(`Approval did NOT reach the backend (${e instanceof Error ? e.message : 'unreachable'}). Nothing was queued — fix the backend connection and try again.`, 'error')
+      const status = [sent && `${sent} sent`, dryRuns && `${dryRuns} recorded as dry runs`, unsent && `${unsent} could not send`].filter(Boolean).join(', ')
+      const details = result.sent.find((entry) => !accepted.includes(entry))?.status
+      onToast(status ? `${draft.company}: ${status}.${details ? ` First issue: ${details}.` : ''}` : 'The backend returned no send results.',
+        unsent || !accepted.length ? 'error' : 'success')
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : 'Couldn’t approve the drafts. Try again.', 'error')
     } finally {
+      inFlight.current = false
       setSending(null)
     }
   }
 
   return (
-    <div>
-      <PageHeader title="Draft mails" subtitle={live
-        ? `${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'} waiting in backend memory — approve one and the sender takes it from there.`
-        : 'Personalised from real research. Nothing sends without your approval — approve a draft and the sender takes it from there.'}
-        actions={<Badge tone="warning"><Clock className="h-3 w-3" /> Approval required</Badge>} />
-      {!live && <DemoDataNotice what="drafts" />}
-      {drafts.length === 0 && (
-        <EmptyState
-          icon={Mail}
-          title="No drafts waiting"
-          body="Drafts appear here after the agent researches a company — each one personalised from real research and waiting for your approval before anything sends."
-          action={<Link to="/chat"><Button variant="brand">Research a company</Button></Link>}
-        />
-      )}
-      <div className="space-y-3">
-        {drafts.map((d, i) => {
-          const isOpen = openTo === d.to
-          const isApproved = approved.has(d.to)
-          return (
-            <div key={d.to} className="card overflow-hidden transition-shadow hover:shadow-soft">
-              <button onClick={() => setOpen(isOpen ? null : d.to)} aria-expanded={isOpen} className="flex w-full items-center gap-4 px-6 py-4 text-left transition hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40">
-                <Avatar name={d.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-                    To: {d.name} <span className="font-normal text-zinc-400">&lt;{d.to}&gt;</span>
-                  </p>
-                  <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{d.subject}</p>
-                </div>
-                <Badge tone={d.company === 'iion' ? 'active' : 'muted'}>{d.company}</Badge>
-                {isApproved && <Badge tone="interested"><Check className="h-3 w-3" /> Approved</Badge>}
-                <ChevronDown className={cn('h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300', isOpen && 'rotate-180')} />
-              </button>
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
-                    <div className="border-t border-zinc-100/80 px-6 py-5 dark:border-zinc-800/80">
-                      <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Subject: {d.subject}</p>
-                      <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-zinc-50/80 p-4 font-sans text-sm leading-relaxed text-zinc-700 ring-1 ring-inset ring-zinc-100 dark:bg-zinc-800/50 dark:text-zinc-300 dark:ring-zinc-800">{d.body}</pre>
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-400 dark:ring-zinc-700/60"><Paperclip className="h-3.5 w-3.5" /> Sivasai_Boggu_Resume.pdf attached</span>
-                        <span className="ml-auto flex gap-2">
-                          <Button variant="ghost" onClick={() => rewriteInChat(d)}><PenLine className="h-3.5 w-3.5" /> Rewrite in chat</Button>
-                          <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved || sending === d.to} onClick={() => approve(d)}>
-                            {sending === d.to ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isApproved ? 'Approved' : sending === d.to ? 'Approving…' : 'Approve & send'}
-                          </Button>
-                        </span>
-                      </div>
+    <>
+      <PageHeader title="Draft mails" subtitle="Read the copy and check the recipient before approving outreach."
+        actions={<Badge tone="warning"><Clock size={15} /> Approval required</Badge>} />
+      {loading ? <LoadingState label="Loading draft mails…" /> : (
+        <>
+          {!live && <DemoDataNotice what="draft mails" />}
+          {company && <div className="mb-4 flex flex-wrap items-center gap-3 text-sm"><strong>{company}</strong><Link to="/drafts" className="text-link">Show all drafts</Link></div>}
+          {!selected ? (
+            <EmptyState icon={Mail} title="No drafts waiting" body="Ask the agent to research a company and write drafts for its verified contacts."
+              action={<ActionLink to="/chat" variant="brand">Research a company</ActionLink>} />
+          ) : (
+            <div className="draft-layout">
+              <section className="panel ruled">
+                <CardHeader title="Review queue" subtitle={`${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`} />
+                {drafts.map((draft) => (
+                  <button className="draft-selector" type="button" key={draftKey(draft)} aria-pressed={draft === selected}
+                    onClick={() => setParams(company ? { company, to: draft.to } : { to: draft.to }, { replace: true })}>
+                    <span className="min-w-0">
+                      <strong className="block break-words leading-tight">{draft.name}</strong>
+                      <span className="mt-1 block text-sm text-muted">{draft.company}</span>
+                    </span>
+                    {approved.has(draftKey(draft)) && <Check size={16} className="text-success" aria-label="Approved" />}
+                  </button>
+                ))}
+              </section>
+              <article className="panel">
+                <header className="border-b border-rule p-5 sm:p-6">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={selected.name} />
+                    <div className="min-w-0">
+                      <p className="font-semibold">To {selected.name}</p>
+                      <p className="break-all font-mono text-xs text-muted">{selected.to}</p>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                  <h2 className="section-title mt-4 break-words">{selected.subject}</h2>
+                </header>
+                <div className="p-5 sm:p-6"><p className="letter whitespace-pre-wrap">{selected.body}</p></div>
+                <footer className="border-t border-rule p-5 sm:p-6">
+                  <p className="mb-4 text-sm text-muted">Approval runs for the whole company. The backend controls the send interval and résumé attachment.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => rewrite(selected)}><PenLine size={15} /> Rewrite in chat</Button>
+                    <Button variant="brand" disabled={Boolean(sending) || Boolean(isApproved) || !selected.company} onClick={() => approve(selected)}>
+                      {isApproved ? <Check size={16} /> : <Send size={16} />}
+                      {isApproved ? 'Approved' : sending ? 'Approving…' : 'Approve company drafts'}
+                    </Button>
+                  </div>
+                </footer>
+              </article>
             </div>
-          )
-        })}
-      </div>
-      <Card className="mt-4 border-dashed p-5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-        Sending is rate-limited to one mail every 5 minutes, and every send is logged in the backend — with its real Gmail message ID when it actually went out (dry-run entries carry a dry-run ID instead).
-      </Card>
-    </div>
+          )}
+        </>
+      )}
+    </>
   )
 }

@@ -3,19 +3,25 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="AI SDR Agent — research companies, find verified founders, draft personalised cold mails, send with a gap, track replies." />
-    <meta name="theme-color" content="#4f46e5" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f46e5'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'>S</text></svg>" />
-    <title>SDR — AI SDR Agent</title>
+    <meta name="description" content="Research companies, find verified contacts, review outreach drafts, and track replies in SDR Agent." />
+    <meta name="theme-color" content="#f5f2eb" />
+    <meta property="og:title" content="SDR Agent · Outreach ledger" />
+    <meta property="og:description" content="Company research, verified leads, drafts, and replies in one workspace." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./outreach-ledger.png" />
+    <meta property="og:image:alt" content="SDR Agent Outreach ledger wordmark" />
+    <link rel="icon" type="image/png" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="preload" href="/node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <title>SDR Agent · Outreach ledger</title>
     <script>
       try {
-        const t = localStorage.getItem('sdr-theme');
-        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
+        const theme = localStorage.getItem('sdr-theme')
+        if (theme === 'dark' || (!theme && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
         }
-      } catch (e) {}
+      } catch {}
     </script>
   </head>
   <body>

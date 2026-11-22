@@ -1,60 +1,48 @@
-// Design tokens guard — tokens.json is the single source of truth for
-// the dashboard's colour system. Fails if the file is not valid JSON,
-// is missing a ramp, or lists a colour that is not a well-formed OKLCH
-// value with a hex fallback. Run: npm test
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 
-const tokens = JSON.parse(fs.readFileSync(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), 'tokens.json'), 'utf-8'))
+const tokens = JSON.parse(readFileSync(new URL('./tokens.json', import.meta.url), 'utf8'))
+const css = readFileSync(new URL('../tokens.css', import.meta.url), 'utf8')
 
-const OKLCH_RE = /^oklch\(\d\.\d{3} \d\.\d{3} \d+\.\d{2}\)$/
-const HEX_RE = /^#[0-9a-f]{6}$/
+function luminance(hex) {
+  const channels = hex.slice(1).match(/../g).map((channel) => parseInt(channel, 16) / 255)
+  const linear = channels.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+  return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+}
 
-test('tokens.json parses and names the system', () => {
+test('the ledger ships a twelve-step neutral ramp and two full themes', () => {
   assert.match(tokens.name, /AI SDR Agent/)
-  assert.ok(tokens.signature?.idea, 'signature idea required')
-  assert.ok(tokens.contrast?.pairs?.length >= 10, 'contrast table required')
+  assert.match(tokens.signature.idea, /copper/)
+  assert.equal(Object.keys(tokens.color.neutral).length, 12)
+  assert.deepEqual(Object.keys(tokens.color.modes.light), Object.keys(tokens.color.modes.dark))
 })
 
-test('every colour has a hex fallback and a well-formed OKLCH value', () => {
-  const check = (obj, where) => {
-    for (const [key, v] of Object.entries(obj)) {
-      if (v && typeof v === 'object' && 'oklch' in v) {
-        assert.match(v.oklch, OKLCH_RE, `${where}.${key} oklch`)
-        assert.match(v.hex, HEX_RE, `${where}.${key} hex`)
-      } else if (v && typeof v === 'object') {
-        check(v, `${where}.${key}`)
-      }
+test('every palette entry has a valid OKLCH color and matching CSS fallbacks', () => {
+  const groups = [
+    [tokens.color.neutral, 'neutral-'],
+    ...Object.values(tokens.color.modes).map((group) => [group, '']),
+  ]
+  for (const [colors, prefix] of groups) {
+    for (const [key, color] of Object.entries(colors)) {
+      assert.match(color.oklch, /^oklch\(\d\.\d{5} \d\.\d{5} \d+\.\d{3}\)$/)
+      assert.match(color.hex, /^#[0-9a-f]{6}$/)
+      const variable = `--${prefix}${key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)}`
+      assert.ok(css.includes(`${variable}: ${color.oklch};`))
+      assert.ok(css.includes(`${variable}: ${color.hex};`))
     }
   }
-  check(tokens.color, 'color')
 })
 
-test('brand ramp is complete (50-900) and the accent is indigo', () => {
-  for (const step of ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900']) {
-    assert.ok(tokens.color.brand[step], `brand-${step} missing`)
+test('published WCAG ratios match the shipped colors in both themes', () => {
+  assert.ok(tokens.contrast.pairs.length >= 10)
+  for (const pair of tokens.contrast.pairs) {
+    for (const [theme, colors] of Object.entries(tokens.color.modes)) {
+      const a = luminance(colors[pair.foreground].hex)
+      const b = luminance(colors[pair.background].hex)
+      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+      assert.equal(Number(ratio.toFixed(2)), pair[theme])
+      assert.ok(ratio >= pair.minimum, `${theme}: ${pair.foreground} on ${pair.background} = ${ratio}`)
+    }
   }
-  // Indigo hue lives around 277deg; a drifted hue means the ramp was
-  // edited by hand instead of converted from the hex.
-  for (const step of ['500', '600', '700']) {
-    const hue = parseFloat(tokens.color.brand[step].oklch.match(/(\d+\.\d{2})\)$/)[1])
-    assert.ok(hue >= 270 && hue <= 285, `brand-${step} hue ${hue} is not indigo`)
-  }
-})
-
-test('contrast table only claims AA where the ratio earns it', () => {
-  for (const p of tokens.contrast.pairs) {
-    const ratio = parseFloat(p.ratio)
-    if (p.aa === 'pass') assert.ok(ratio >= 4.5, `${p.pair} claims pass at ${ratio}`)
-    if (p.aa === 'fail-normal-pass-large') assert.ok(ratio >= 3 && ratio < 4.5, `${p.pair} ratio ${ratio}`)
-  }
-})
-
-test('motion rules ban decorative animation', () => {
-  assert.ok(tokens.motion.banned.includes('shimmer'))
-  assert.ok(tokens.motion.banned.includes('staggered entrances'))
 })

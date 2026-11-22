@@ -1,139 +1,92 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { Compass, Moon, Search, Sun, X, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Building2, LayoutDashboard, Mail, MessageSquare, Moon, Reply, Search, Sun, Users, Compass,
-} from 'lucide-react'
-import { cn } from '../lib/utils'
+import { NAV } from './layout'
 
-export type PaletteAction = {
-  id: string
-  label: string
-  hint?: string
-  group: string
-  icon: React.ComponentType<{ className?: string }>
-  run: () => void
-}
+type PaletteAction = { id: string; label: string; group: string; icon: LucideIcon; run: () => void }
 
-/** ⌘K command palette: jump to any page, start research on a known
- * company, or toggle the theme — all keyboard-first. Research actions
- * queue the request for Agent chat via session storage; Chat picks it
- * up on mount and asks the agent. */
 export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
-  open: boolean
-  onClose: () => void
-  onToggleTheme: () => void
-  dark: boolean
+  open: boolean; onClose: () => void; onToggleTheme: () => void; dark: boolean
 }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const actions: PaletteAction[] = useMemo(() => {
-    const go = (to: string) => () => { navigate(to); onClose() }
-    const research = (company: string) => () => {
-      try { window.sessionStorage.setItem('sdr-pending-chat', `Research ${company} and draft mails`) } catch { /* ignore */ }
-      navigate('/chat')
-      onClose()
-    }
-    return [
-      { id: 'nav-overview', label: 'Go to Overview', group: 'Navigate', icon: LayoutDashboard, run: go('/') },
-      { id: 'nav-discover', label: 'Go to Discover — boards & companies', group: 'Navigate', icon: Compass, run: go('/discover') },
-      { id: 'nav-campaigns', label: 'Go to Campaigns', group: 'Navigate', icon: Building2, run: go('/campaigns') },
-      { id: 'nav-leads', label: 'Go to Leads', group: 'Navigate', icon: Users, run: go('/leads') },
-      { id: 'nav-drafts', label: 'Go to Draft mails', group: 'Navigate', icon: Mail, run: go('/drafts') },
-      { id: 'nav-replies', label: 'Go to Replies', group: 'Navigate', icon: Reply, run: go('/replies') },
-      { id: 'nav-chat', label: 'Go to Agent chat', group: 'Navigate', icon: MessageSquare, run: go('/chat') },
-      { id: 'research-iion', label: 'Research iion and draft mails', group: 'Research', icon: MessageSquare, run: research('iion') },
-      { id: 'research-alchemyst', label: 'Research Alchemyst AI and draft mails', group: 'Research', icon: MessageSquare, run: research('Alchemyst AI') },
-      { id: 'research-discover', label: 'Research Discover Dollar and draft mails', group: 'Research', icon: MessageSquare, run: research('Discover Dollar') },
-      { id: 'research-drivetrain', label: 'Research Drivetrain and draft mails', group: 'Research', icon: MessageSquare, run: research('Drivetrain') },
-      { id: 'theme', label: dark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Appearance', icon: dark ? Sun : Moon, run: () => { onToggleTheme(); onClose() } },
-    ]
-  }, [navigate, onClose, onToggleTheme, dark])
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return actions
-    return actions.filter((a) => a.label.toLowerCase().includes(q) || a.group.toLowerCase().includes(q))
-  }, [actions, query])
-
   useEffect(() => {
-    if (open) {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) {
       setQuery('')
       setActive(0)
-      window.setTimeout(() => inputRef.current?.focus(), 50)
+      dialog.showModal()
+      searchRef.current?.focus()
     }
-  }, [open ])
-
-  useEffect(() => { setActive(0) }, [query])
+    if (!open && dialog.open) dialog.close()
+  }, [open])
 
   useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose() }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, filtered.length - 1)) }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
-      else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); filtered[active].run() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose, filtered, active])
-
-  useEffect(() => {
-    listRef.current?.querySelector(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+    listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  let lastGroup = ''
+  function go(to: string) {
+    dialogRef.current?.close()
+    onClose()
+    navigate(to)
+  }
+
+  const actions: PaletteAction[] = [
+    ...NAV.map(({ to, label, icon }) => ({ id: to, label, group: 'Go to', icon, run: () => go(to) })),
+    ...['iion', 'Alchemyst AI', 'Discover Dollar', 'Drivetrain'].map((company) => ({
+      id: company, label: `Research ${company} and draft mails`, group: 'Research', icon: Compass, run: () => {
+        try { sessionStorage.setItem('sdr-pending-chat', `Research ${company} and draft mails`) } catch { /* Storage is optional. */ }
+        go('/chat')
+      },
+    })),
+    { id: 'theme', label: dark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Appearance',
+      icon: dark ? Sun : Moon, run: () => { onToggleTheme(); onClose() } },
+  ]
+  const q = query.trim().toLowerCase()
+  const filtered = actions.filter((a) => `${a.label} ${a.group}`.toLowerCase().includes(q))
+  const selected = filtered[active]
+
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-zinc-950/50 px-4 pt-[12vh]"
-          onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
-          <motion.div initial={{ opacity: 0, y: -12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-pop ring-1 ring-zinc-200/70 dark:bg-zinc-900 dark:ring-zinc-700/70"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 border-b border-zinc-100/80 px-4 py-3.5 dark:border-zinc-800/80">
-              <Search className="h-4 w-4 shrink-0 text-zinc-400" />
-              <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder="Type a command or search…"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-                aria-label="Search commands" />
-              <kbd className="kbd shrink-0">ESC</kbd>
-            </div>
-            <div ref={listRef} className="max-h-[320px] overflow-y-auto p-2">
-              {filtered.length === 0 && (
-                <p className="px-3 py-6 text-center text-sm text-zinc-500">No commands match “{query}”.</p>
-              )}
-              {filtered.map((a, i) => {
-                const groupHeader = a.group !== lastGroup
-                lastGroup = a.group
-                return (
-                  <div key={a.id}>
-                    {groupHeader && <p className="eyebrow px-3 pb-1 pt-3 first:pt-1">{a.group}</p>}
-                    <button data-idx={i} onMouseEnter={() => setActive(i)} onClick={a.run}
-                      className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition',
-                        i === active ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900' : 'text-zinc-700 hover:bg-zinc-100/80 dark:text-zinc-200 dark:hover:bg-zinc-800/70')}>
-                      <a.icon className="h-4 w-4 shrink-0 opacity-70" />
-                      <span className="truncate font-medium">{a.label}</span>
-                      {i === active && <kbd className="ml-auto rounded border border-white/30 px-1.5 py-0.5 text-[10px] font-semibold opacity-70">↵</kbd>}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex items-center gap-4 border-t border-zinc-100/80 px-4 py-2.5 text-[11px] text-zinc-400 dark:border-zinc-800/80">
-              <span><kbd className="kbd">Up Down</kbd> navigate</span>
-              <span><kbd className="kbd">Enter</kbd> run</span>
-              <span><kbd className="kbd">esc</kbd> close</span>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <dialog id="command-palette" ref={dialogRef} className="modal modal--palette" aria-label="Command palette"
+      onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <div className="flex items-center gap-2 border-b border-rule p-3">
+        <Search className="text-muted" size={18} aria-hidden="true" />
+        <input ref={searchRef} className="input" value={query}
+          onChange={(event) => { setQuery(event.target.value); setActive(0) }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault()
+              setActive((index) => Math.max(0, Math.min(filtered.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1))))
+            }
+            if (event.key === 'Enter' && selected) { event.preventDefault(); selected.run() }
+          }}
+          placeholder="Find a page or action" aria-label="Search commands" role="combobox" aria-expanded={open}
+          aria-controls="command-results" aria-autocomplete="list"
+          aria-activedescendant={selected ? `command-option-${active}` : undefined} />
+        <button type="button" className="icon-button" onClick={onClose} aria-label="Close command palette"><X size={18} /></button>
+      </div>
+      <div ref={listRef} id="command-results" role="listbox" aria-label="Commands" className="max-h-80 overflow-auto p-2">
+        {filtered.length === 0 && <p className="p-4 text-muted" role="status">No commands match “{query}”.</p>}
+        {filtered.map((action, index) => (
+          <div key={action.id} role="presentation">
+            {filtered[index - 1]?.group !== action.group && <p className="eyebrow px-3 pt-3 pb-1">{action.group}</p>}
+            <button type="button" tabIndex={-1} id={`command-option-${index}`} data-index={index}
+              data-active={index === active} role="option" aria-selected={index === active} className="palette-option"
+              onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={action.run}>
+              <action.icon size={16} className="text-muted" aria-hidden="true" />{action.label}
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-4 border-t border-rule p-3 text-xs text-muted" aria-hidden="true">
+        <span><kbd>Up or Down</kbd> Move</span><span><kbd>Enter</kbd> Open</span><span><kbd>Esc</kbd> Close</span>
+      </div>
+    </dialog>
   )
 }

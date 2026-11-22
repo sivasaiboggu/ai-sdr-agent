@@ -1,59 +1,54 @@
-import { CalendarClock, Inbox, Reply } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
-import { SEED_REPLIES } from '../lib/data'
+import { Inbox } from 'lucide-react'
+import { ActionLink, Badge, CardHeader, DemoDataNotice, EmptyState, LoadingState, PageHeader } from '../components/ui'
+import { ReplyBreakdown } from '../components/charts'
+import { useLiveData } from '../lib/data'
+import { replyRecords, replyTypes } from '../lib/replies'
 import { timeAgo } from '../lib/utils'
 
-const LABELS: Record<string, string> = {
-  interested: 'Interested — reply and book a call',
-  'not-now': 'Not now — follow up in 3–4 weeks',
-  bounce: 'Bounce — fix the address, never resend to it',
-  'out-of-office': 'Out of office — follow up on the return date',
-}
-
 export default function Replies() {
+  const { data, loading } = useLiveData()
+  const live = Boolean(data?.live)
+  const replies = replyRecords(live ? data?.campaigns ?? { companies: [], mails: [] } : null)
+
   return (
-    <div>
-      <PageHeader title="Replies" subtitle="Every reply the tracker sees, classified — with the next step already written for you." />
-      <DemoDataNotice what="replies" />
-      {SEED_REPLIES.length === 0 && (
-        <EmptyState
-          icon={Reply}
-          title="No replies yet"
-          body="Replies land here once the tracker classifies them — interested, not now, bounce or out of office — with the next step already written for you."
-          action={<Link to="/drafts"><Button variant="brand">Review drafts</Button></Link>}
-        />
-      )}
-      <div className="space-y-3">
-        {SEED_REPLIES.map((r, i) => (
-          <div key={r.id} className="card card-hover p-6">
-            <div className="flex flex-wrap items-start gap-4">
-              <Avatar name={r.from} size="lg" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-bold tracking-tight text-zinc-900 dark:text-white">{r.from}</p>
-                  <Badge tone={r.classification} dot>{r.classification}</Badge>
-                  <span className="text-xs font-medium text-zinc-400">{r.company} · {timeAgo(r.receivedAt)}</span>
-                </div>
-                <p className="mt-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">{r.subject}</p>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{r.snippet}</p>
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-zinc-50 px-2.5 py-1.5 text-xs font-medium text-zinc-600 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700/60">
-                  <CalendarClock className="h-3.5 w-3.5" /> Next step: {LABELS[r.classification]}
-                </p>
-              </div>
+    <>
+      <PageHeader title="Replies" subtitle="See how each reply was classified and decide what to do next." />
+      {loading ? <LoadingState label="Loading replies…" /> : (
+        <>
+          {!live && <DemoDataNotice what="replies" />}
+          {replies.length === 0 ? (
+            <EmptyState icon={Inbox} title="No replies yet" body="Replies appear here after the tracker classifies them."
+              action={<ActionLink to="/drafts">Review drafts</ActionLink>} />
+          ) : (
+            <div className="split">
+              <section className="panel ruled">
+                <CardHeader title="Reply log" subtitle={`${replies.length} ${replies.length === 1 ? 'record' : 'records'}`} />
+                {replies.map((reply) => {
+                  const category = replyTypes[reply.classification]
+                  return (
+                    <article className="ledger-row p-5" key={reply.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold">{reply.from}</p>
+                          <p className="text-xs text-muted">{reply.company}{reply.receivedAt && ` · ${timeAgo(reply.receivedAt)}`}</p>
+                        </div>
+                        <Badge tone={reply.classification} dot>{category.label}</Badge>
+                      </div>
+                      <h3 className="mt-3 break-words text-lg font-semibold">{reply.subject}</h3>
+                      {reply.snippet && <p className="mt-2 max-w-prose text-sm text-muted">{reply.snippet}</p>}
+                      <div className="mt-4 border-t border-rule pt-3">
+                        <p className="eyebrow">Next step</p>
+                        <p className="text-sm">{category.next}</p>
+                      </div>
+                    </article>
+                  )
+                })}
+              </section>
+              <section className="panel"><CardHeader title="Reply breakdown" /><ReplyBreakdown replies={replies} /></section>
             </div>
-          </div>
-        ))}
-      </div>
-      <Card className="mt-4 flex items-start gap-3 border-dashed p-5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400 ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700/60">
-          <Inbox className="h-5 w-5" />
-        </span>
-        <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-          Follow-ups are scheduled 4–5 days after the first mail. The tracker watches Gmail for replies, re-classifies them,
-          and records which hooks and subjects got a reply — so the writer gets better with every campaign.
-        </p>
-      </Card>
-    </div>
+          )}
+        </>
+      )}
+    </>
   )
 }

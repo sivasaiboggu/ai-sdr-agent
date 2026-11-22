@@ -1,111 +1,122 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
-import { Sidebar, Topbar, useBackendHealth } from './components/layout'
+import { NAV, Sidebar, Topbar, useBackendHealth } from './components/layout'
+import { ActionLink, Button, LoadingState, PageHeader } from './components/ui'
 import CommandPalette from './components/CommandPalette'
-import Discover from './pages/Discover'
 import Dashboard from './pages/Dashboard'
 import NotFound from './pages/NotFound'
-import Campaigns from './pages/Campaigns'
-import Leads from './pages/Leads'
-import Drafts from './pages/Drafts'
-import Replies from './pages/Replies'
-import Chat from './pages/Chat'
 
-function useTheme() {
-  const [dark, setDark] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
-  )
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-    try { localStorage.setItem('sdr-theme', dark ? 'dark' : 'light') } catch { /* ignore */ }
-  }, [dark])
-  return { dark, toggle: () => setDark((d) => !d) }
-}
+const Discover = lazy(() => import('./pages/Discover'))
+const Campaigns = lazy(() => import('./pages/Campaigns'))
+const Leads = lazy(() => import('./pages/Leads'))
+const Drafts = lazy(() => import('./pages/Drafts'))
+const Replies = lazy(() => import('./pages/Replies'))
+const Chat = lazy(() => import('./pages/Chat'))
 
 export type ToastTone = 'success' | 'error' | 'info'
 
-const TOAST_ICON = {
-  success: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 dark:text-emerald-600" />,
-  error: <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400 dark:text-rose-500" />,
-  info: <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400 dark:text-sky-500" />,
-} as const
+const toastIcons = { success: CheckCircle2, error: AlertTriangle, info: Info }
+
+class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <PageHeader section="Page error" title="This page couldn’t load"
+        subtitle="Reload the workspace, or return to the overview."
+        actions={<><Button variant="brand" onClick={() => window.location.reload()}>Reload workspace</Button><ActionLink to="/">Overview</ActionLink></>} />
+    )
+  }
+}
 
 export default function App() {
-  const { dark, toggle } = useTheme()
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; tone: ToastTone } | null>(null)
-  const toastTimer = useRef<number | undefined>(undefined)
-  const location = useLocation()
-  // One /health poll for the whole app — Sidebar and Topbar share it
-  // instead of polling separately.
+  const toastTimer = useRef<number>()
+  const main = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+  const previousPath = useRef(pathname)
   const health = useBackendHealth()
+  const toggleTheme = useCallback(() => setDark((value) => !value), [])
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+  const openPalette = useCallback(() => setPaletteOpen(true), [])
+  const closePalette = useCallback(() => setPaletteOpen(false), [])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark)
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#191712' : '#f5f2eb')
+    try { localStorage.setItem('sdr-theme', dark ? 'dark' : 'light') } catch { /* Storage is optional. */ }
+  }, [dark])
 
   const showToast = useCallback((msg: string, tone: ToastTone = 'success') => {
-    // A new toast replaces the old one — and must not be cleared early
-    // by the previous toast's timer (the old code kept one shared
-    // timeout that fired on whatever toast was showing).
     window.clearTimeout(toastTimer.current)
     setToast({ msg, tone })
-    toastTimer.current = window.setTimeout(() => setToast(null), 4200)
+    toastTimer.current = window.setTimeout(() => setToast(null), 5000)
   }, [])
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   useEffect(() => {
+    document.title = `${NAV.find((item) => item.to === pathname)?.label ?? 'Page not found'} · SDR Agent`
+    if (previousPath.current === pathname) return
+    previousPath.current = pathname
     window.scrollTo({ top: 0 })
-  }, [location.pathname])
+    main.current?.focus({ preventScroll: true })
+  }, [pathname])
 
-  // ⌘K / Ctrl+K opens the command palette anywhere in the app.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setPaletteOpen((o) => !o)
-      }
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
+      if (document.querySelector('dialog[open]:not(#command-palette)')) return
+      event.preventDefault()
+      setPaletteOpen((value) => !value)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const ToastIcon = toast ? toastIcons[toast.tone] : Info
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} health={health} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleTheme={toggle} dark={dark} />
-      <div className="lg:pl-64">
-        <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} onOpenPalette={() => setPaletteOpen(true)} query={query} onQuery={setQuery} health={health} />
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <Routes location={location}>
-            <Route path="/" element={<Dashboard health={health ?? null} />} />
-            <Route path="/discover" element={<Discover />} />
-            <Route path="/campaigns" element={<Campaigns query={query} />} />
-            <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
-            <Route path="/drafts" element={<Drafts onToast={showToast} />} />
-            <Route path="/replies" element={<Replies />} />
-            <Route path="/chat" element={<Chat onToast={showToast} />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200/70 pt-5 text-xs text-zinc-400 dark:border-zinc-800/70">
-            <span>SDR Agent v0.9.7 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
-            <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
-          </footer>
+    <div className="app-shell">
+      <button className="button button--primary skip-link" onClick={() => main.current?.focus()}>Skip to main content</button>
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+      <CommandPalette open={paletteOpen} onClose={closePalette} onToggleTheme={toggleTheme} dark={dark} />
+      <div className="app-main">
+        <Topbar dark={dark} onToggleTheme={toggleTheme} menuOpen={sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenPalette={openPalette} query={query} onQuery={setQuery} health={health} />
+        <main ref={main} id="main-content" tabIndex={-1} className="workspace">
+          <RouteBoundary key={pathname}>
+            <Suspense fallback={<LoadingState label="Loading page…" />}>
+              <Routes>
+                <Route path="/" element={<Dashboard health={health ?? null} />} />
+                <Route path="/discover" element={<Discover />} />
+                <Route path="/campaigns" element={<Campaigns query={query} />} />
+                <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
+                <Route path="/drafts" element={<Drafts onToast={showToast} />} />
+                <Route path="/replies" element={<Replies />} />
+                <Route path="/chat" element={<Chat onToast={showToast} />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </RouteBoundary>
         </main>
       </div>
-
-      <AnimatePresence>
-        {toast && (
-          <motion.div initial={{ opacity: 0, y: 24, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-2xl bg-zinc-900 px-4 py-3.5 text-sm font-medium text-white shadow-pop ring-1 ring-white/10 dark:bg-white dark:text-zinc-900 dark:ring-zinc-900/10"
-            role="status">
-            {TOAST_ICON[toast.tone]}
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {toast && (
+        <div className="toast" role={toast.tone === 'error' ? 'alert' : 'status'}>
+          <ToastIcon size={16} className={`tone-${toast.tone === 'error' ? 'danger' : toast.tone}`} aria-hidden="true" />
+          <p>{toast.msg}</p>
+        </div>
+      )}
     </div>
   )
 }
