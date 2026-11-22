@@ -54,9 +54,9 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
       {person && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-sm" onClick={onClose} />
+            className="fixed inset-0 z-40 bg-zinc-950/40" onClick={onClose} />
           <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col overflow-y-auto border-l border-zinc-200/70 bg-white/95 shadow-pop backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-900/95 sm:max-w-md"
+            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col overflow-y-auto border-l border-zinc-200/70 bg-white shadow-pop dark:border-zinc-800/70 dark:bg-zinc-900 sm:max-w-md"
             role="dialog" aria-modal="true" aria-label={`Lead details for ${person.name}`}>
             <div className="flex items-start gap-3 border-b border-zinc-100/80 px-6 py-5 dark:border-zinc-800/80">
               <Avatar name={person.name} />
@@ -75,7 +75,7 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
                 <h3 className="eyebrow">Lead score</h3>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-inset ring-black/5 dark:bg-zinc-800 dark:ring-white/5">
-                    <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${person.score}%` }} />
+                    <div className="h-full rounded-full bg-brand-600" style={{ width: `${person.score}%` }} />
                   </div>
                   <span className="tabular text-lg font-bold leading-none text-zinc-900 dark:text-white">{person.score}</span>
                 </div>
@@ -120,7 +120,7 @@ export default function LeadDrawer({ person, onClose, onSelect, onToast }: {
                     <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{draft.subject}</p>
                     <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{draft.body}</p>
                     <Link to="/drafts" onClick={onClose} className="mt-2.5 inline-block">
-                      <Button variant="ghost">Open in Drafts →</Button>
+                      <Button variant="ghost">Open in Drafts</Button>
                     </Link>
                   </div>
                 ) : (

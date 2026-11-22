@@ -25,9 +25,7 @@ export default {
         // Layered, low-opacity shadows: depth without the heavy "card" look.
         card: '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.05)',
         soft: '0 2px 6px -2px rgba(16,24,40,.05), 0 8px 20px -8px rgba(16,24,40,.08)',
-        lift: '0 2px 6px -2px rgba(16,24,40,.08), 0 12px 28px -10px rgba(16,24,40,.18)',
         pop: '0 12px 32px -8px rgba(16,24,40,.18)',
-        glow: '0 0 0 1px rgba(79,70,229,.18), 0 10px 28px -8px rgba(79,70,229,.45)',
       },
       keyframes: {
         shimmer: { '0%': { backgroundPosition: '-400px 0' }, '100%': { backgroundPosition: '400px 0' } },

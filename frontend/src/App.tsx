@@ -6,6 +6,7 @@ import { Sidebar, Topbar, useBackendHealth } from './components/layout'
 import CommandPalette from './components/CommandPalette'
 import Discover from './pages/Discover'
 import Dashboard from './pages/Dashboard'
+import NotFound from './pages/NotFound'
 import Campaigns from './pages/Campaigns'
 import Leads from './pages/Leads'
 import Drafts from './pages/Drafts'
@@ -76,26 +77,22 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleTheme={toggle} dark={dark} />
       <div className="lg:pl-64">
         <Topbar dark={dark} onToggleTheme={toggle} onOpenSidebar={() => setSidebarOpen(true)} onOpenPalette={() => setPaletteOpen(true)} query={query} onQuery={setQuery} health={health} />
-        <AnimatePresence mode="wait">
-          <motion.main key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-            <Routes location={location}>
-            <Route path="/" element={<Dashboard />} />
+        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <Routes location={location}>
+            <Route path="/" element={<Dashboard health={health ?? null} />} />
             <Route path="/discover" element={<Discover />} />
             <Route path="/campaigns" element={<Campaigns query={query} />} />
             <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
             <Route path="/drafts" element={<Drafts onToast={showToast} />} />
             <Route path="/replies" element={<Replies />} />
             <Route path="/chat" element={<Chat onToast={showToast} />} />
-            <Route path="*" element={<Dashboard />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
           <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200/70 pt-5 text-xs text-zinc-400 dark:border-zinc-800/70">
-            <span>SDR Agent v0.9.4 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+            <span>SDR Agent v0.9.6 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
-          </motion.main>
-        </AnimatePresence>
+        </main>
       </div>
 
       <AnimatePresence>

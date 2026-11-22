@@ -33,7 +33,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp import webhook as wa
 
-APP_VERSION = "0.9.4"
+APP_VERSION = "0.9.6"
 
 app = FastAPI(title="AI SDR Agent", version=APP_VERSION)
 app.add_middleware(
@@ -56,9 +56,41 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
 
 
+class ReplyRequest(BaseModel):
+    company: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=200)
+    text: str = Field(min_length=1, max_length=10000)
+    from_name: str = Field(default="", max_length=200)
+    hook: str = Field(default="", max_length=2000)
+
+
 class ApproveRequest(BaseModel):
     company: str = Field(min_length=1, max_length=200)
     approve: bool = True
+
+
+@router.post("/replies")
+def log_reply(req: ReplyRequest):
+    """Log a reply to a sent mail: classify it, persist the class on the
+    sent mail row, and return the class + follow-up timing. Replies used
+    to be classified in memory only and dropped — the dashboard's reply
+    counts and breakdown never moved. `recorded` is False when no sent
+    mail matches (company, email), so a reply to an address never mailed
+    is reported honestly instead of inventing a row."""
+    from backend.app.agents.tracker import classify_reply, follow_up_due_days
+    cls = classify_reply(req.text)
+    recorded = False
+    try:
+        conn = mem.connect()
+        try:
+            recorded = mem.record_reply(conn, req.company, req.email, cls)
+            if cls == "interested" and req.hook.strip():
+                mem.record_learning(conn, "hook", req.hook.strip(), "interested reply")
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not record reply: {e}")
+    return {"class": cls, "follow_up_in_days": follow_up_due_days(cls), "recorded": recorded}
 
 
 @router.get("/health")
@@ -254,14 +286,14 @@ def campaigns():
         conn = mem.connect()
         try:
             companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-            mails = conn.execute("SELECT company, recipient, email, subject, body, status, reply_class, sent_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
+            mails = conn.execute("SELECT company, recipient, email, subject, body, status, reply_class, sent_at, replied_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
         finally:
             conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read campaign memory: {e}")
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],
             "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "body": m[4], "status": m[5],
-                       "reply_class": m[6], "sent_at": m[7]} for m in mails]}
+                       "reply_class": m[6], "sent_at": m[7], "replied_at": m[8]} for m in mails]}
 
 
 @router.get("/people")

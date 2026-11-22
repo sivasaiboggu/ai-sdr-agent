@@ -10,8 +10,6 @@ def classify_reply(text: str) -> str:
     t = text.lower()
     if "undeliverable" in t or "550" in t or "does not exist" in t or "mail delivery" in t:
         return "bounce"
-    if "out of office" in t or "out-of-office" in t or "on leave" in t:
-        return "out of office"
     # Negations and opt-outs BEFORE the "interested" check: the old order
     # matched "interested" first, so "I'm not interested" and "no thanks,
     # remove me" were both classified as interested — and a follow-up was
@@ -28,6 +26,11 @@ def classify_reply(text: str) -> str:
                             "send your resume", "send me your", "share your",
                             "happy to chat", "let's connect", "keen to"]):
         return "interested"
+    # "Out of office" AFTER interest: "I'm on leave next week, let's
+    # schedule a call" is a live lead, not an out-of-office — the old
+    # order filed it as OOO and the follow-up never happened.
+    if "out of office" in t or "out-of-office" in t or "on leave" in t:
+        return "out of office"
     if any(w in t for w in ["not hiring", "no opening", "not now", "not at the moment", "no vacancy"]):
         return "not now"
     return "other"
@@ -42,7 +45,15 @@ def run(state: dict) -> dict:
     try:
         for r in state.get("replies", []):
             cls = classify_reply(r.get("text", ""))
-            results.append({"from": r.get("from", ""), "class": cls, "follow_up_in_days": follow_up_due_days(cls)})
+            # Persist the classification against the sent mail it answers:
+            # without this the dashboard's reply counts and breakdown
+            # read from /campaigns stayed at zero forever.
+            recorded = False
+            if r.get("email") and r.get("company"):
+                recorded = mem.record_reply(conn, r["company"], r["email"], cls)
+            results.append({"from": r.get("from", ""), "class": cls,
+                            "follow_up_in_days": follow_up_due_days(cls),
+                            "recorded": recorded})
             # Only record a learning when the reply actually carries the
             # hook that worked. The old fallback recorded the literal
             # placeholder "personalised research hook" as a learning for

@@ -1,7 +1,6 @@
-import { motion } from 'framer-motion'
 import { CalendarClock, Inbox, Reply } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
 import { SEED_REPLIES } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
@@ -27,7 +26,7 @@ export default function Replies() {
       )}
       <div className="space-y-3">
         {SEED_REPLIES.map((r, i) => (
-          <motion.div key={r.id} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card card-hover p-6">
+          <div key={r.id} className="card card-hover p-6">
             <div className="flex flex-wrap items-start gap-4">
               <Avatar name={r.from} size="lg" />
               <div className="min-w-0 flex-1">
@@ -43,7 +42,7 @@ export default function Replies() {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
       <Card className="mt-4 flex items-start gap-3 border-dashed p-5">

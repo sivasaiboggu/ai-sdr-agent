@@ -44,15 +44,30 @@ def draft_mail(company: str, person: dict, profile: dict) -> dict:
         raise ValueError("Writer needs a person with a name")
     if not (profile.get("name") or "").strip():
         raise ValueError("Writer needs a researched company profile")
+    # Refuse to draft for a company we could not research: with no
+    # sources and no role, the mail would invent a role that may not
+    # exist and claim research that never happened. The caller reports
+    # this plainly instead of sending a generic mail.
+    if not profile.get("researched", True):
+        raise ValueError(
+            f"Could not research {profile['name']!r} — no verified public "
+            "information found, so there is nothing real to write about. "
+            "Research it by hand first, or pick a company with a live posting."
+        )
     key = normalize_company(company).strip().lower()
     first = person["name"].split()[0]
-    role = profile.get("role") or "the open AI role"
-    hook = HOOKS.get(key) or f"I read about {profile['name']} and the {role} — the work matches what I already build with LangGraph and RAG."
-    subject = SUBJECTS.get(key, f"Applying for {role} — Sivasai Boggu, AI Agent Engineer")
+    # The role phrase must read as a sentence: with a researched role it
+    # names it ("iion's AI Engineering Intern (Agentic Workflows)"); with
+    # no role on file it says "a role at X" instead of inventing one
+    # ("the open AI role" used to read as a role that may not exist).
+    role = profile.get("role") or ""
+    role_phrase = f"{profile['name']}'s {role}" if role else f"a role at {profile['name']}"
+    hook = HOOKS.get(key) or f"I read about {profile['name']} and {role_phrase} — the work matches what I already build with LangGraph and RAG."
+    subject = SUBJECTS.get(key, f"Applying for {role_phrase} — Sivasai Boggu, AI Agent Engineer")
 
     body = f"""Hi {first},
 
-I am applying for {profile['name']}'s {role}, and I am writing directly because the role describes the work I already do.
+I am applying for {role_phrase}, and I am writing directly because the role describes the work I already do.
 
 In AuditMind, I built a document-intelligence system with FastAPI, BERT, RAG and Gemini that extracts clauses, flags compliance gaps and scores risk — an agent workflow, not a single prompt. In HireMind AI, I built resume analysis with React, TypeScript and Gemini. My day-to-day stack is Python, LangChain and LangGraph, and I am currently a Software Developer Intern at Whispry.
 

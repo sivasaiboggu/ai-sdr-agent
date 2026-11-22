@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Loader2, Send, Sparkles, User, WifiOff } from 'lucide-react'
+import { Bot, Check, Loader2, Mail, Send, User, WifiOff } from 'lucide-react'
 import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, invalidateLiveData, sendChat, streamChat, type Draft } from '../lib/data'
 import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
 import type { ToastTone } from '../App'
@@ -142,7 +142,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="flex h-[560px] flex-col overflow-hidden shadow-soft sm:h-[620px] xl:col-span-2">
           <div className="flex items-center gap-3 border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/30 ring-1 ring-white/20"><Bot className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm"><Bot className="h-5 w-5" /></span>
             <div>
               <p className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
               <p className={cn('flex items-center gap-1.5 text-xs',
@@ -187,7 +187,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
                     <div key={s.key} className="flex items-center gap-2.5 text-sm">
                       <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ring-2 ring-white dark:ring-zinc-900',
                         i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-brand-600 text-white ring-brand-500/30' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800')}>
-                        {i < step ? '✓' : i + 1}
+                        {i < step ? <Check className="h-3 w-3" /> : i + 1}
                       </span>
                       <span className={i <= step ? 'font-medium text-zinc-800 dark:text-zinc-100' : 'text-zinc-400'}>{s.label}</span>
                     </div>
@@ -217,7 +217,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
         <div className="space-y-4">
           <Card>
             <div className="border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
-              <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"><Sparkles className="h-4 w-4 text-brand-500" /> Drafts from this chat</h3>
+              <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"><Mail className="h-4 w-4 text-brand-500" /> Drafts from this chat</h3>
             </div>
             <div className="space-y-3 p-5">
               {drafts.length === 0 && <p className="text-sm leading-relaxed text-zinc-500">No drafts yet — ask the agent to research a company and they'll appear here, ready for approval.</p>}
@@ -232,7 +232,7 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
               ))}
             </div>
           </Card>
-          <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-5 text-white ring-1 ring-white/10 dark:from-white dark:to-zinc-200 dark:text-zinc-900 dark:ring-zinc-900/10">
+          <Card className="bg-zinc-900 p-5 text-white dark:bg-white dark:text-zinc-900">
             <p className="text-sm font-bold tracking-tight">How approval works</p>
             <p className="mt-1.5 text-xs leading-relaxed opacity-80">Drafts never send on their own. Approve one in Drafts, or reply YES on WhatsApp — the sender then sends one mail every 5 minutes, PDF attached, and logs every message ID.</p>
           </Card>

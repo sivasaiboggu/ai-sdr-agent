@@ -4,7 +4,6 @@ import {
   LayoutDashboard, Building2, Users, Mail, MessageSquare, Reply,
   Search, Sun, Moon, Zap, MessageCircle, ChevronRight, Compass,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { cn } from '../lib/utils'
 import { SEED_CAMPAIGNS, fetchHealth, useLiveData, type Health } from '../lib/data'
 
@@ -48,13 +47,13 @@ export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () 
     : SEED_CAMPAIGNS.map((c) => ({ name: c.name, leads: c.leads }))
   return (
     <>
-      {open && <div className="fixed inset-0 z-30 bg-zinc-950/40 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+      {open && <div className="fixed inset-0 z-30 bg-zinc-950/40 lg:hidden" onClick={onClose} />}
       <aside className={cn(
-        'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200/70 bg-white/85 backdrop-blur-xl transition-transform duration-300 dark:border-zinc-800/70 dark:bg-zinc-900/85 lg:translate-x-0',
+        'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200/70 bg-white transition-transform duration-300 dark:border-zinc-800/70 dark:bg-zinc-900 lg:translate-x-0',
         open ? 'translate-x-0' : '-translate-x-full',
       )}>
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-base font-bold text-white shadow-md shadow-brand-500/30 ring-1 ring-white/20">S</div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-base font-bold text-white shadow-sm dark:bg-white dark:text-zinc-900">S</div>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
             <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">AI Sales Development</p>
@@ -105,7 +104,7 @@ export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () 
         </nav>
 
         <div className="border-t border-zinc-100/80 p-4 dark:border-zinc-800/80">
-          <div className="rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 text-white shadow-soft ring-1 ring-white/10 dark:from-zinc-800 dark:to-zinc-800/70 dark:ring-white/5">
+          <div className="rounded-2xl bg-zinc-900 p-4 text-white shadow-soft dark:bg-zinc-800 dark:text-zinc-100">
             <div className="flex items-center gap-2 text-sm font-semibold"><span className="h-2 w-2 rounded-full bg-emerald-400" /><Zap className="h-4 w-4 text-emerald-400" /> WhatsApp bot</div>
             <p className="mt-1 text-xs leading-relaxed text-zinc-400">Chat with the agent on WhatsApp — research, draft, approve with a YES.</p>
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-200 ring-1 ring-inset ring-white/10">
@@ -143,8 +142,7 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   return (
-    <motion.header initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-      className="sticky top-0 z-20 border-b border-zinc-200/70 bg-white/75 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/75">
+    <header className="sticky top-0 z-20 border-b border-zinc-200/70 bg-white dark:border-zinc-800/70 dark:bg-zinc-950">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
         <button onClick={onOpenSidebar} className="btn-ghost !px-2.5 lg:hidden" aria-label="Open menu">
           <LayoutDashboard className="h-4 w-4" />
@@ -162,7 +160,7 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
               notifications system, so no bell: the old one showed a fake
               unread dot and did nothing when clicked. */}
           <span title={health ? `Backend ${health.database} · Gemini ${health.gemini_configured ? 'on' : 'off'} · Apollo ${health.apollo_configured ? 'on' : 'off'}` : undefined} className={cn(
-            'hidden items-center gap-2 rounded-full border bg-white/60 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur md:inline-flex dark:bg-zinc-900/60',
+            'hidden items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-xs font-medium shadow-sm md:inline-flex dark:bg-zinc-900',
             health && health.gmail_configured && health.gmail_send_enabled
               ? 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400'
               : 'border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300',
@@ -185,6 +183,6 @@ export function Topbar({ dark, onToggleTheme, onOpenSidebar, onOpenPalette, quer
           </button>
         </div>
       </div>
-    </motion.header>
+    </header>
   )
 }

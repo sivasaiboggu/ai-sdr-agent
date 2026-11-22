@@ -1,7 +1,6 @@
-import { motion } from 'framer-motion'
 import { ArrowUpRight, Building2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
 import { SEED_CAMPAIGNS, SEED_DRAFTS, SEED_PEOPLE, useLiveData } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 import { cn } from '../lib/utils'
@@ -22,7 +21,7 @@ function PipelineFunnel({ leads, drafts, sent, replies }: { leads: number; draft
     <div className="mt-5">
       <div className="flex h-2.5 w-full gap-1">
         {stages.map((s) => (
-          <motion.div key={s.label} initial={{ width: 0 }} animate={{ width: `${(s.count / max) * 100}%` }} transition={{ duration: 0.6 }}
+          <div key={s.label} style={{ width: `${(s.count / max) * 100}%` }}
             className={cn('h-full rounded-full', s.tone, s.count > 0 && 'min-w-[6px]')} title={`${s.label}: ${s.count}`} />
         ))}
       </div>
@@ -122,7 +121,7 @@ export default function Campaigns({ query }: { query: string }) {
       )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {filtered.map((c, i) => (
-          <motion.div key={c.name} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card card-hover group p-6">
+          <div key={c.name} className="card card-hover group p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 text-sm font-bold text-white shadow-sm ring-1 ring-white/10 dark:bg-white dark:text-zinc-900 dark:ring-zinc-900/10">
@@ -155,7 +154,7 @@ export default function Campaigns({ query }: { query: string }) {
               <Link to="/leads" className="flex-1"><Button variant="ghost" className="w-full">View leads</Button></Link>
               <Link to="/drafts" className="flex-1"><Button variant="primary" className="w-full">View drafts</Button></Link>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>

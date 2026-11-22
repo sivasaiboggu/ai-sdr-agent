@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import { BadgeCheck, Mail, Search } from 'lucide-react'
-import { Avatar, Badge, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
 import LeadDrawer from '../components/LeadDrawer'
 import { SEED_PEOPLE, useLiveData, type Person } from '../lib/data'
 import { cn } from '../lib/utils'
@@ -61,16 +60,16 @@ export default function Leads({ query, onToast }: { query: string; onToast: (msg
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-100/80 dark:border-zinc-800/80">
-                  <th className="sticky top-0 bg-white/95 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 backdrop-blur dark:bg-zinc-900/95">Person</th>
-                  <th className="sticky top-0 bg-white/95 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 backdrop-blur dark:bg-zinc-900/95">Company</th>
-                  <th className="sticky top-0 bg-white/95 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 backdrop-blur dark:bg-zinc-900/95">Email</th>
-                  <th className="sticky top-0 bg-white/95 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 backdrop-blur dark:bg-zinc-900/95">Lead score</th>
-                  <th className="sticky top-0 bg-white/95 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 backdrop-blur dark:bg-zinc-900/95">Status</th>
+                  <th className="sticky top-0 bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:bg-zinc-900">Person</th>
+                  <th className="sticky top-0 bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:bg-zinc-900">Company</th>
+                  <th className="sticky top-0 bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:bg-zinc-900">Email</th>
+                  <th className="sticky top-0 bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:bg-zinc-900">Lead score</th>
+                  <th className="sticky top-0 bg-white px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:bg-zinc-900">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {list.map((p, i) => (
-                  <motion.tr key={p.email || p.name} variants={fadeUp} initial="hidden" animate="show" custom={i}
+                  <tr key={p.email || p.name}
                     onClick={() => setSelected(p)} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setSelected(p) }}
                     className="cursor-pointer border-b border-zinc-50 transition last:border-0 hover:bg-zinc-50/80 focus-visible:bg-zinc-50/80 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40 dark:focus-visible:bg-zinc-800/40">
                     <td className="px-5 py-3.5">
@@ -87,8 +86,8 @@ export default function Leads({ query, onToast }: { query: string; onToast: (msg
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-24 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-inset ring-black/5 dark:bg-zinc-800 dark:ring-white/5">
-                          <motion.div initial={{ width: 0 }} animate={{ width: `${p.score}%` }} transition={{ duration: 0.7, delay: i * 0.05 }}
-                            className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" />
+                          <div style={{ width: `${p.score}%` }}
+                            className="h-full rounded-full bg-brand-600" />
                         </div>
                         <span className="tabular text-xs font-bold text-zinc-700 dark:text-zinc-200">{p.score}</span>
                       </div>
@@ -98,7 +97,7 @@ export default function Leads({ query, onToast }: { query: string; onToast: (msg
                         ? <Badge tone="verified"><BadgeCheck className="h-3 w-3" /> Verified</Badge>
                         : <Badge tone="muted">Unverified</Badge>}
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
               </tbody>
             </table>

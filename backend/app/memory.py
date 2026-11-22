@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE TABLE IF NOT EXISTS mails (
   id INTEGER PRIMARY KEY, company TEXT, recipient TEXT, email TEXT,
   subject TEXT, body TEXT, status TEXT, message_id TEXT, sent_at REAL,
-  reply_class TEXT
+  reply_class TEXT, replied_at REAL
 );
 CREATE TABLE IF NOT EXISTS learnings (
   id INTEGER PRIMARY KEY, kind TEXT, text TEXT, outcome TEXT, created_at REAL
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE TABLE IF NOT EXISTS mails (
   id SERIAL PRIMARY KEY, company TEXT, recipient TEXT, email TEXT,
   subject TEXT, body TEXT, status TEXT, message_id TEXT, sent_at DOUBLE PRECISION,
-  reply_class TEXT
+  reply_class TEXT, replied_at DOUBLE PRECISION
 );
 CREATE TABLE IF NOT EXISTS learnings (
   id SERIAL PRIMARY KEY, kind TEXT, text TEXT, outcome TEXT, created_at DOUBLE PRECISION
@@ -214,6 +214,24 @@ class _PGConnection:
         return False
 
 
+def _migrate(conn):
+    """Add columns that fresh schemas already have but existing
+    databases do not. `CREATE TABLE IF NOT EXISTS` never alters a
+    table, so `replied_at` (round 9 — replies need their own timestamp
+    so the activity chart buckets them on the day they arrived, not
+    the day the mail was sent) is added here. The duplicate-column
+    error on databases that already have it is ignored; on Postgres a
+    failed statement aborts the transaction, so roll back first."""
+    try:
+        conn.execute("ALTER TABLE mails ADD COLUMN replied_at REAL")
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+
 def _connect_postgres(url):
     try:
         import psycopg
@@ -225,6 +243,7 @@ def _connect_postgres(url):
     conn = _PGConnection(psycopg.connect(url))
     conn.executescript(PG_SCHEMA)
     conn.commit()
+    _migrate(conn)
     return conn
 
 
@@ -236,12 +255,14 @@ def connect(db_path: str | None = None):
     if db_path is not None:
         conn = sqlite3.connect(db_path, timeout=30)
         conn.executescript(SCHEMA)
+        _migrate(conn)
         return conn
     url = postgres_url()
     if url:
         return _connect_postgres(url)
     conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 def save_company(conn, name, domain="", summary="", sources=None):
@@ -298,6 +319,31 @@ def save_mail(conn, company, recipient, email, subject, body, status="draft", me
     return cur.lastrowid
 
 def record_learning(conn, kind, text, outcome):
+    conn.execute(
+        "INSERT INTO learnings(kind, text, outcome, created_at) VALUES (?,?,?,?)",
+        (kind, text, outcome, time.time()),
+    )
+    conn.commit()
+
+def record_reply(conn, company, email, reply_class):
+    """Persist a classified reply against the latest sent mail to that
+    address. Returns True when a mail row was updated.
+
+    The tracker used to classify replies in memory and drop them: the
+    `reply_class` column existed, `/campaigns` served it, and the
+    dashboard counted it — but nothing ever wrote it, so live replies
+    always read as zero. A reply with no matching sent mail (wrong
+    address, or never mailed) returns False instead of inventing a row.
+    """
+    cur = conn.execute(
+        "UPDATE mails SET reply_class = ?, replied_at = ? WHERE id = ("
+        "SELECT id FROM mails WHERE lower(company) = lower(?) "
+        "AND lower(email) = lower(?) AND status = 'sent' "
+        "ORDER BY sent_at DESC, id DESC LIMIT 1)",
+        (reply_class, time.time(), company, email),
+    )
+    conn.commit()
+    return cur.rowcount > 0
     conn.execute(
         "INSERT INTO learnings(kind, text, outcome, created_at) VALUES (?,?,?,?)",
         (kind, text, outcome, time.time()),

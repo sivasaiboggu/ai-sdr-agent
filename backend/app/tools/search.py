@@ -68,16 +68,22 @@ def normalize_company(text: str) -> str:
     return low.strip().title() or text.strip()
 
 def search_company(company: str) -> dict:
-    """Research one company. Returns summary + cited sources."""
+    """Research one company. Returns summary + cited sources.
+
+    `researched` is True only when the profile rests on real material —
+    a verified seed profile or live search results. When neither exists
+    the profile says so plainly and the Writer must refuse to draft:
+    a mail to a company we know nothing about would invent a role that
+    may not exist."""
     company = normalize_company(company)
     key = company.strip().lower()
     live = _live_search(f"{company} company careers hiring")
     known = KNOWN_COMPANIES.get(key)
     if known:
         sources = list(dict.fromkeys(known["sources"] + [r["url"] for r in live]))
-        return {**known, "sources": sources, "live_results": live}
+        return {**known, "sources": sources, "live_results": live, "researched": True}
     if live:
         return {"name": company, "domain": "", "summary": f"Found {len(live)} web results for {company}; top: {live[0]['title']}.",
-                "sources": [r["url"] for r in live], "role": "", "live_results": live}
+                "sources": [r["url"] for r in live], "role": "", "live_results": live, "researched": True}
     return {"name": company, "domain": "", "summary": f"No verified public information found for {company} in this run.",
-            "sources": [], "role": "", "live_results": []}
+            "sources": [], "role": "", "live_results": [], "researched": False}

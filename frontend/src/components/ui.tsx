@@ -1,5 +1,4 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { motion } from 'framer-motion'
 import { Info } from 'lucide-react'
 import { avatarColor, cn, initials } from '../lib/utils'
 
@@ -75,7 +74,7 @@ export function EmptyState({ icon: Icon, title, body, action }: {
 }) {
   return (
     <div className="card flex flex-col items-center border-dashed px-5 py-14 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-100 to-zinc-200/60 text-zinc-400 shadow-sm ring-1 ring-inset ring-zinc-200/70 dark:from-zinc-800 dark:to-zinc-800/60 dark:text-zinc-500 dark:ring-zinc-700/60">
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 shadow-sm ring-1 ring-inset ring-zinc-200/70 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700/60">
         <Icon className="h-6 w-6" />
       </span>
       <p className="mt-4 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{title}</p>
@@ -112,17 +111,12 @@ export function DemoDataNotice({ what = 'campaigns, leads, drafts and replies' }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle: string; actions?: ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="text-[28px] font-bold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">{title}</h1>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{subtitle}</p>
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
-    </motion.div>
+    </div>
   )
-}
-
-export const fadeUp = {
-  hidden: { opacity: 0, y: 14 },
-  show: (i: number = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.06, ease: 'easeOut' as const } }),
 }

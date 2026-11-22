@@ -7,6 +7,7 @@ the variables were exported in the shell.
 """
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -32,6 +33,31 @@ def _env_list(name: str, default: str) -> list[str]:
     return [v.strip() for v in raw.split(",") if v.strip()]
 
 
+def _default_resume_path() -> str:
+    """Where the approved PDF resume lives, without depending on the
+    working directory. The old default was a relative path
+    (workspace/your_files/...) that only resolved when uvicorn happened
+    to start from $HOME — from the project directory the sender found
+    no file and every real send failed with 'Attachment not found'.
+    An explicit RESUME_PATH always wins; otherwise prefer the real file
+    in the job-search goal folder (resolved from this file's location),
+    then the your_files copy; fall back to the old relative path."""
+    explicit = os.getenv("RESUME_PATH", "").strip()
+    if explicit:
+        return explicit
+    here = Path(__file__).resolve()
+    project_root = here.parents[2]
+    candidates = [
+        project_root.parent.parent / "goals" / "ai-agent-job-search-founder-cold-mails-and-applications"
+        / "files" / "sivasai-boggu-ats-resume" / "Sivasai_Boggu_Resume.pdf",
+        Path.home() / "workspace" / "your_files" / "sivasai-boggu-ats-resume" / "Sivasai_Boggu_Resume.pdf",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return str(c)
+    return "workspace/your_files/sivasai-boggu-ats-resume/Sivasai_Boggu_Resume.pdf"
+
+
 @dataclass
 class Settings:
     gemini_api_key: str = _env("GEMINI_API_KEY")
@@ -43,7 +69,7 @@ class Settings:
     gmail_app_password: str = _env("GMAIL_APP_PASSWORD")
     database_url: str = _env("DATABASE_URL", "sqlite:///./sdr.db")
     send_gap_seconds: int = _env_int("SEND_GAP_SECONDS", 300)
-    resume_path: str = _env("RESUME_PATH", "workspace/your_files/sivasai-boggu-ats-resume/Sivasai_Boggu_Resume.pdf")
+    resume_path: str = field(default_factory=_default_resume_path)
     # Origins allowed to call the API from a browser (Vercel frontend).
     # Comma-separated; add the deployed frontend origin here, e.g.
     # CORS_ORIGINS=https://ai-sdr-agent.vercel.app,http://localhost:5173

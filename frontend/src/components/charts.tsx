@@ -1,5 +1,5 @@
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { DEMO_WEEKLY_ACTIVITY, REPLY_MIX } from '../lib/data'
+import { REPLY_MIX } from '../lib/data'
 
 /** Dark-aware tooltip — the old contentStyle was a light card that
  * stayed light in dark mode. This one follows the theme like the
@@ -7,7 +7,7 @@ import { DEMO_WEEKLY_ACTIVITY, REPLY_MIX } from '../lib/data'
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name?: string; value?: number | string; stroke?: string; fill?: string; dataKey?: string | number }>; label?: string }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl border border-zinc-200/70 bg-white/95 px-3 py-2 text-xs shadow-pop backdrop-blur dark:border-zinc-700/80 dark:bg-zinc-900/95">
+    <div className="rounded-xl border border-zinc-200/70 bg-white px-3 py-2 text-xs shadow-pop dark:border-zinc-700/80 dark:bg-zinc-900">
       {label && <p className="font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>}
       {payload.map((p) => (
         <p key={String(p.dataKey ?? p.name)} className="mt-1 flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
@@ -19,21 +19,14 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   )
 }
 
-export function ActivityChart() {
+/** Flat area fills: the old gradient fills were decoration on a chart
+ * that already had the numbers. A solid low-opacity fill reads the
+ * same in both themes and never pretends to be a highlight. */
+export function ActivityChart({ data }: { data: { day: string; sent: number; replies: number }[] }) {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={DEMO_WEEKLY_ACTIVITY} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-          <defs>
-            <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#4f46e5" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="replyGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
           {/* Mid-grey at low opacity reads as a hairline in both themes;
               the old #e4e4e7 grid was invisible in light mode and harsh
               in dark mode. */}
@@ -41,8 +34,8 @@ export function ActivityChart() {
           <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#a1a1aa' }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 12, fill: '#a1a1aa' }} axisLine={false} tickLine={false} allowDecimals={false} />
           <Tooltip content={<ChartTooltip />} />
-          <Area type="monotone" dataKey="sent" name="Mails sent" stroke="#4f46e5" strokeWidth={2.5} fill="url(#sentGrad)" />
-          <Area type="monotone" dataKey="replies" name="Replies" stroke="#10b981" strokeWidth={2.5} fill="url(#replyGrad)" />
+          <Area type="monotone" dataKey="sent" name="Mails sent" stroke="#4f46e5" strokeWidth={2.5} fill="#4f46e5" fillOpacity={0.08} isAnimationActive={false} />
+          <Area type="monotone" dataKey="replies" name="Replies" stroke="#10b981" strokeWidth={2.5} fill="#10b981" fillOpacity={0.08} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -59,7 +52,7 @@ export function ReplyDonut({ mix = REPLY_MIX }: { mix?: typeof REPLY_MIX }) {
       <div className="h-40 w-40 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={mix} dataKey="value" nameKey="name" innerRadius={52} outerRadius={72} paddingAngle={3} strokeWidth={0}>
+            <Pie data={mix} dataKey="value" nameKey="name" innerRadius={52} outerRadius={72} paddingAngle={3} strokeWidth={0} isAnimationActive={false}>
               {mix.map((d) => <Cell key={d.name} fill={d.color} />)}
             </Pie>
             <Tooltip content={<ChartTooltip />} />

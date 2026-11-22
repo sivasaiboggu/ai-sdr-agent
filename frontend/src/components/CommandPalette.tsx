@@ -91,11 +91,11 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
     <AnimatePresence>
       {open && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-zinc-950/50 px-4 pt-[12vh] backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-zinc-950/50 px-4 pt-[12vh]"
           onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
           <motion.div initial={{ opacity: 0, y: -12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white/95 shadow-pop ring-1 ring-zinc-200/70 backdrop-blur-xl dark:bg-zinc-900/95 dark:ring-zinc-700/70"
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-pop ring-1 ring-zinc-200/70 dark:bg-zinc-900 dark:ring-zinc-700/70"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 border-b border-zinc-100/80 px-4 py-3.5 dark:border-zinc-800/80">
               <Search className="h-4 w-4 shrink-0 text-zinc-400" />
@@ -127,8 +127,8 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
               })}
             </div>
             <div className="flex items-center gap-4 border-t border-zinc-100/80 px-4 py-2.5 text-[11px] text-zinc-400 dark:border-zinc-800/80">
-              <span><kbd className="kbd">↑↓</kbd> navigate</span>
-              <span><kbd className="kbd">↵</kbd> run</span>
+              <span><kbd className="kbd">Up Down</kbd> navigate</span>
+              <span><kbd className="kbd">Enter</kbd> run</span>
               <span><kbd className="kbd">esc</kbd> close</span>
             </div>
           </motion.div>

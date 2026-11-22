@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronDown, Clock, Loader2, Mail, Paperclip, PenLine, Send } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, fadeUp, PageHeader } from '../components/ui'
+import { Avatar, Badge, Button, Card, DemoDataNotice, EmptyState, PageHeader } from '../components/ui'
 import { approveCompany, invalidateLiveData, SEED_DRAFTS, useLiveData, type Draft } from '../lib/data'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
@@ -88,7 +88,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
           const isOpen = openTo === d.to
           const isApproved = approved.has(d.to)
           return (
-            <motion.div key={d.to} variants={fadeUp} initial="hidden" animate="show" custom={i} className="card overflow-hidden transition-shadow hover:shadow-soft">
+            <div key={d.to} className="card overflow-hidden transition-shadow hover:shadow-soft">
               <button onClick={() => setOpen(isOpen ? null : d.to)} aria-expanded={isOpen} className="flex w-full items-center gap-4 px-6 py-4 text-left transition hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40">
                 <Avatar name={d.name} />
                 <div className="min-w-0 flex-1">
@@ -112,7 +112,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
                         <span className="ml-auto flex gap-2">
                           <Button variant="ghost" onClick={() => rewriteInChat(d)}><PenLine className="h-3.5 w-3.5" /> Rewrite in chat</Button>
                           <Button variant={isApproved ? 'primary' : 'brand'} disabled={isApproved || sending === d.to} onClick={() => approve(d)}>
-                            {sending === d.to ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isApproved ? 'Approved ✓' : sending === d.to ? 'Approving…' : 'Approve & send'}
+                            {sending === d.to ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isApproved ? 'Approved' : sending === d.to ? 'Approving…' : 'Approve & send'}
                           </Button>
                         </span>
                       </div>
@@ -120,7 +120,7 @@ export default function Drafts({ onToast }: { onToast: (msg: string, tone?: Toas
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </div>
           )
         })}
       </div>

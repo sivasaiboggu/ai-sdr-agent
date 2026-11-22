@@ -93,7 +93,7 @@ export default function Discover() {
           { label: 'Companies covered', value: coverageLoaded ? String(covered.size) : '…', sub: 'Researched, mailed or sent' },
           { label: 'Mails sent', value: coverageLoaded ? String(sentTotal) : '…', sub: 'Real sends logged in memory' },
         ].map((s, i) => (
-          <Card key={s.label} className={`rise rise-${i + 1} p-5 text-center`}>
+          <Card key={s.label} className="p-5 text-center">
             <p className="tabular text-[28px] font-bold leading-none tracking-tight text-zinc-900 dark:text-white">{s.value}</p>
             <p className="eyebrow mt-2">{s.label}</p>
             <p className="mt-1 text-[11px] text-zinc-400">{s.sub}</p>
@@ -124,7 +124,7 @@ export default function Discover() {
                   {found.demo ? ' (demo campaign data)' : ''}. Researching again is fine, but approving would
                   re-mail them — the backend blocks re-sends. See the campaign instead.</span>
               </Alert>
-              <div className="mt-2"><Button variant="ghost" onClick={() => navigate('/campaigns')}>View campaigns →</Button></div>
+              <div className="mt-2"><Button variant="ghost" onClick={() => navigate('/campaigns')}>View campaigns</Button></div>
             </motion.div>
           )}
           {check === 'blocked' && (
@@ -142,7 +142,7 @@ export default function Discover() {
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span><strong>{checkedName} is new</strong> — not researched, mailed or applied to yet.</span>
               </Alert>
-              <div className="mt-2"><Button variant="brand" onClick={researchCompany}>Research {checkedName} in Agent chat →</Button></div>
+              <div className="mt-2"><Button variant="brand" onClick={researchCompany}>Research {checkedName} in Agent chat</Button></div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -93,19 +93,6 @@ export const SEED_REPLIES: ReplyItem[] = [
   { id: 'r2', from: 'Mail Delivery Subsystem', company: 'iion', subject: 'Delivery Status Notification', classification: 'bounce', snippet: '550 5.1.1 — the email account jobs@iion.io does not exist. Do not resend to this address.', receivedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
 ]
 
-/** Illustrative sample week for the activity chart — NOT measured data.
- * No backend endpoint serves activity aggregates yet, so the chart is a
- * placeholder shape; the Dashboard labels it as such. */
-export const DEMO_WEEKLY_ACTIVITY = [
-  { day: 'Mon', sent: 2, replies: 0 },
-  { day: 'Tue', sent: 3, replies: 1 },
-  { day: 'Wed', sent: 1, replies: 0 },
-  { day: 'Thu', sent: 4, replies: 1 },
-  { day: 'Fri', sent: 2, replies: 1 },
-  { day: 'Sat', sent: 0, replies: 0 },
-  { day: 'Sun', sent: 0, replies: 0 },
-]
-
 export const REPLY_MIX_COLORS: Record<ReplyItem['classification'], string> = {
   interested: '#10b981',
   'not-now': '#f59e0b',
@@ -198,7 +185,7 @@ export function normalizeCompanyName(name: string): string {
 
 export type CampaignsResponse = {
   companies: { name: string; summary: string }[]
-  mails: { company: string; recipient: string; email: string; subject: string; body: string; status: string; reply_class: string | null; sent_at: number | null }[]
+  mails: { company: string; recipient: string; email: string; subject: string; body: string; status: string; reply_class: string | null; sent_at: number | null; replied_at: number | null }[]
 }
 
 export async function fetchPeople(): Promise<Person[] | null> {

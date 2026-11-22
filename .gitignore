@@ -11,3 +11,4 @@ dist/
 vite.config.js
 .DS_Store
 vite.config.d.ts
+screenshots/

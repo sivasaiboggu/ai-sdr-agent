@@ -26,7 +26,7 @@ def main():
                 company = rest
             break
 
-    print(f"🤖 AI SDR Agent — researching {company} ...")
+    print(f"AI SDR Agent — researching {company} ...")
     result = run_campaign(company, approve=args.send, dry_run=not args.no_dry_run)
     print("\n--- Company ---")
     print(json.dumps(result["profile"], indent=2))
