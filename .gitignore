@@ -12,3 +12,6 @@ vite.config.js
 .DS_Store
 vite.config.d.ts
 screenshots/
+
+# Frontend browser test artifacts
+.playwright-results/

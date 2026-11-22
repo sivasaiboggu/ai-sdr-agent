@@ -1,23 +1,25 @@
 {
   "dependencies": {
+    "@fontsource-variable/instrument-sans": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
     "clsx": "^2.1.1",
-    "framer-motion": "^11.11.9",
     "lucide-react": "^0.453.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.27.0",
-    "recharts": "^2.13.0",
-    "tailwind-merge": "^2.5.4"
+    "react-router-dom": "7.18.6",
+    "tailwind-merge": "^2.5.4",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.0",
+    "@vitejs/plugin-react": "6.3.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.5.0",
-    "vite": "^5.3.0"
+    "vite": "8.3.8"
   },
   "name": "ai-sdr-agent-frontend",
   "private": true,
@@ -25,8 +27,12 @@
     "build": "tsc -b && vite build",
     "dev": "vite",
     "preview": "vite preview",
-    "test": "node --test src/lib/*.test.mjs"
+    "test": "node --test src/lib/*.test.mjs",
+    "test:e2e": "playwright test"
   },
   "type": "module",
-  "version": "0.9.7"
+  "version": "0.9.7",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
 }

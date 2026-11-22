@@ -1,236 +1,210 @@
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Loader2, Mail, Send, User, WifiOff } from 'lucide-react'
-import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, invalidateLiveData, sendChat, streamChat, type Draft } from '../lib/data'
-import { Alert, Avatar, Badge, Button, Card, PageHeader, PipelineSteps } from '../components/ui'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { ArrowRight, Send, WifiOff } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { z } from 'zod/mini'
+import {
+  AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, invalidateLiveData,
+  sendChat, streamChat, type ChatResponse, type Draft,
+} from '../lib/data'
+import { Alert, Badge, Button, CardHeader, PageHeader, PipelineSteps } from '../components/ui'
 import type { ToastTone } from '../App'
-import { cn } from '../lib/utils'
 
-type Msg = { role: 'user' | 'agent'; text: string }
+type Message = { role: 'user' | 'agent'; text: string }
 
-const SUGGESTIONS = [
-  'Research iion and draft mails',
-  'Research Alchemyst AI and draft mails',
-  'Research Discover Dollar and draft mails',
-  'Research Drivetrain and draft mails',
-]
+const suggestions = ['iion', 'Alchemyst AI', 'Discover Dollar', 'Drivetrain']
+const chatMessage = z.string().check(z.trim(), z.minLength(1, 'Enter a message.'), z.maxLength(1000, 'Use 1,000 characters or fewer.'))
 
-export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastTone) => void }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: 'agent', text: "Hi Sivasai — I'm your SDR agent. Give me a company and I'll research it, find the verified founders and hiring leads, and draft personalised mails. Nothing sends without your approval." },
+export default function Chat({ onToast }: { onToast: (message: string, tone?: ToastTone) => void }) {
+  const location = useLocation()
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'agent', text: 'Give me a company name. I can look up the company, find verified contacts and write drafts for you to review.' },
   ])
   const [input, setInput] = useState('')
+  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [streaming, setStreaming] = useState(false)
-  const [apiDown, setApiDown] = useState(false)
-  // Real backend status from /health — the header must not claim "Online"
-  // when the API was never reached.
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const [step, setStep] = useState(0)
   const [drafts, setDrafts] = useState<Draft[]>([])
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const pendingRun = useRef(false)
+  const transcript = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    let live = true
-    checkHealth().then((ok) => {
-      if (!live) return
-      setApiStatus(ok ? 'online' : 'offline')
-      setApiDown(!ok)
-    })
-    // A research request queued from the ⌘K command palette.
-    try {
-      const pending = window.sessionStorage.getItem('sdr-pending-chat')
-      if (pending) {
-        window.sessionStorage.removeItem('sdr-pending-chat')
-        window.setTimeout(() => ask(pending), 300)
-      }
-    } catch { /* session storage unavailable — ignore */ }
-    return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true
+    checkHealth().then((ok) => { if (active && !pendingRun.current) setApiStatus(ok ? 'online' : 'offline') })
+    return () => { active = false }
   }, [])
 
-  /** Stream the reply live from /chat/stream; fall back to the plain /chat
-   * call if streaming fails before the first token arrives. */
+  useEffect(() => {
+    // Queue on the next task so StrictMode's first setup can cancel cleanly.
+    const timer = window.setTimeout(() => {
+      let pending: string | null = null
+      try {
+        pending = sessionStorage.getItem('sdr-pending-chat')
+        if (pending) sessionStorage.removeItem('sdr-pending-chat')
+      } catch { /* Storage is optional. */ }
+      if (pending) {
+        if (pendingRun.current) setInput(pending)
+        else void ask(pending)
+      }
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [location.key])
+
+  useEffect(() => {
+    if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight
+  }, [messages.length, busy])
+
+  function onResult(data: Pick<ChatResponse, 'drafts'>) {
+    const next = data.drafts ?? []
+    setDrafts(next)
+    setApiStatus('online')
+    invalidateLiveData()
+    onToast(next.length ? `${next.length} ${next.length === 1 ? 'draft' : 'drafts'} ready for review.` : 'Agent request finished.')
+  }
+
   async function ask(text: string) {
-    const q = text.trim()
-    if (!q || busy) return
-    setMessages((m) => [...m, { role: 'user', text: q }])
+    if (pendingRun.current) return
+    const result = chatMessage.safeParse(text)
+    if (!result.success) { setError(result.error.issues[0].message); return }
+    const request = result.data
+    pendingRun.current = true
     setInput('')
+    setError('')
     setBusy(true)
+    setStreaming(true)
     setStep(0)
+    setMessages((current) => [...current, { role: 'user', text: request }, { role: 'agent', text: '' }])
     let sawToken = false
-    let streamFailed = false
+    let sawStep = false
+    let streamDone = false
+    let serverError = ''
+
     try {
-      // Append an empty agent message; tokens fill it in as they arrive.
-      setMessages((m) => [...m, { role: 'agent', text: '' }])
-      setStreaming(true)
-      await streamChat(q, (e) => {
-        if (e.kind === 'step') {
-          const idx = AGENT_STEPS.findIndex((s) => s.key === e.key)
-          if (idx >= 0) setStep(e.state === 'done' ? Math.min(idx + 1, AGENT_STEPS.length - 1) : idx)
-        } else if (e.kind === 'token') {
+      await streamChat(request, (event) => {
+        if (event.kind === 'step') {
+          sawStep = true
+          const index = AGENT_STEPS.findIndex((stage) => stage.key === event.key)
+          if (index >= 0) setStep(event.state === 'done' ? Math.min(index + 1, AGENT_STEPS.length - 1) : index)
+        } else if (event.kind === 'token') {
           sawToken = true
-          setMessages((m) => {
-            const next = [...m]
-            const last = next[next.length - 1]
-            if (last && last.role === 'agent') next[next.length - 1] = { ...last, text: last.text + e.text }
-            return next
-          })
-        } else if (e.kind === 'done') {
-          setDrafts(e.drafts ?? [])
-          setApiDown(false)
-          setApiStatus('online')
-          // The run just wrote new companies/people to backend memory —
-          // drop the cached live snapshot so Dashboard/Campaigns/Leads
-          // show the new campaign instead of the pre-run one.
-          invalidateLiveData()
-          onToast(`${e.drafts?.length ?? 0} draft mails ready for review.`)
-        } else if (e.kind === 'error') {
-          streamFailed = true
-          throw new Error(e.detail)
+          setMessages((current) => [...current.slice(0, -1), { role: 'agent', text: current[current.length - 1].text + event.text }])
+        } else if (event.kind === 'done') {
+          streamDone = true
+          if (!sawToken) setMessages((current) => [...current.slice(0, -1), { role: 'agent', text: event.reply || 'Request finished.' }])
+          onResult(event)
+        } else {
+          serverError = event.detail
         }
       })
+      if (serverError || !streamDone) throw new Error(serverError || 'The connection closed before the agent finished.')
+    } catch {
       setStreaming(false)
-      if (streamFailed) throw new Error('Agent run failed')
-    } catch (err) {
-      // Streaming failed before any token: retry once with plain /chat.
-      setStreaming(false)
-      if (!sawToken) {
-        setMessages((m) => m.filter((msg, i) => !(msg.role === 'agent' && msg.text === '' && i === m.length - 1)))
+      if (!sawToken && !sawStep && !serverError && !streamDone) {
         try {
-          const data = await sendChat(q)
-          setApiDown(false)
-          setApiStatus('online')
-          invalidateLiveData()
-          setDrafts(data.drafts ?? [])
-          setMessages((m) => [...m, { role: 'agent', text: data.reply || 'Done — drafts are ready below.' }])
-          onToast(`${data.drafts?.length ?? 0} draft mails ready for review.`)
+          const reply = await sendChat(request)
+          setMessages((current) => [...current.slice(0, -1), { role: 'agent', text: reply.reply || 'Request finished.' }])
+          onResult(reply)
+          return
         } catch {
-          setApiDown(true)
           setApiStatus('offline')
-          const hint = API_BASE_URL
-            ? `Check the backend deployment and that its CORS_ORIGINS allows this site.`
-            : 'Start it with `uvicorn backend.app.api:app --port 8000`.'
-          onToast(`Backend API is not reachable at ${API_BASE_LABEL} — ${hint}`, 'error')
-          setMessages((m) => [...m, { role: 'agent', text: `The backend API is not reachable at ${API_BASE_LABEL} (${hint}). Try a suggestion below once it is up — or open Drafts to see the seeded demo mails.` }])
+          serverError = `Couldn’t reach the agent at ${API_BASE_LABEL}. Check the backend, then try again.`
         }
-      } else {
-        // Tokens already arrived — the reply is usable even if the tail failed.
-        onToast('Reply arrived but the stream cut off early — drafts below may be incomplete.', 'error')
       }
+      const message = serverError || 'The connection closed before the agent finished.'
+      if (!sawToken && !streamDone) setMessages((current) => [...current.slice(0, -1), { role: 'agent', text: message }])
+      onToast(message, 'error')
     } finally {
+      pendingRun.current = false
       setBusy(false)
       setStreaming(false)
-      setStep(0)
-      window.setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     }
   }
 
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    void ask(input)
+  }
+
   return (
-    <div>
-      <PageHeader title="Agent chat" subtitle="Talk to the agent in plain language — it plans, researches, drafts, and waits for your approval." />
-      {apiDown && (
-        <div className="mb-4">
-          <Alert tone="error">
-            <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
-            <span><strong>Backend API is not reachable at {API_BASE_LABEL}.</strong> {API_BASE_URL
-              ? 'Check the backend deployment and that its CORS_ORIGINS allows this site.'
-              : <>Start it with <code className="rounded bg-rose-100 px-1 py-0.5 font-mono text-xs dark:bg-rose-500/20">uvicorn backend.app.api:app --port 8000</code></>} — until then, drafts below are the seeded demo mails.</span>
-          </Alert>
-        </div>
+    <>
+      <PageHeader title="Agent chat" subtitle="Research a company or ask for revisions. Approve drafts before sending." />
+      {apiStatus === 'offline' && (
+        <div className="mb-6"><Alert tone="error"><WifiOff size={16} /><span>
+          <strong>Backend offline.</strong>{' '}
+          {API_BASE_URL ? 'Check the API deployment and its allowed origins.' : <>Start the API with <code className="break-words">uvicorn backend.app.api:app --port 8000</code>.</>}
+          {' '}You can still browse the draft examples.
+        </span></Alert></div>
       )}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="flex h-[560px] flex-col overflow-hidden shadow-soft sm:h-[620px] xl:col-span-2">
-          <div className="flex items-center gap-3 border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm"><Bot className="h-5 w-5" /></span>
-            <div>
-              <p className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
-              <p className={cn('flex items-center gap-1.5 text-xs',
-                apiStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : apiStatus === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500')}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full',
-                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')} />
-                {apiStatus === 'online' ? 'Online — LangGraph · Gemini · Gmail'
-                  : apiStatus === 'offline' ? `Backend offline — demo mode (${API_BASE_LABEL})`
-                    : 'Checking backend…'}
-              </p>
-            </div>
-            <Badge tone="active" dot className="ml-auto">Human approval on</Badge>
+      <div className="split">
+        <section className="panel ruled">
+          <CardHeader title="Conversation"
+            action={<Badge tone={apiStatus === 'online' ? 'verified' : 'muted'} dot>{apiStatus === 'online' ? 'Online' : apiStatus === 'offline' ? 'Offline' : 'Connecting'}</Badge>} />
+          <div ref={transcript} className="transcript space-y-5 p-5" role="log" aria-label="Agent conversation"
+            aria-live={streaming ? 'off' : 'polite'} aria-busy={streaming}>
+            {messages.map((message, index) => (
+              <div key={index} className="message" data-role={message.role}>
+                <p className="eyebrow">{message.role === 'user' ? 'You' : 'SDR Agent'}</p>
+                <p className="mt-1">{message.text || 'Working…'}</p>
+              </div>
+            ))}
           </div>
+          <form className="border-t border-rule p-4 sm:p-5" onSubmit={submit} noValidate>
+            <label htmlFor="chat-message" className="control-label">Message</label>
+            <div className="flex items-start gap-2">
+              <textarea id="chat-message" className="input min-h-11 resize-y" rows={2} value={input} placeholder="Research a company and draft mails"
+                onChange={(event) => { setInput(event.target.value); setError('') }}
+                aria-invalid={Boolean(error)} aria-describedby={error ? 'chat-error' : undefined}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    if (!busy) void ask(input)
+                  }
+                }} />
+              <Button type="submit" variant="brand" disabled={busy}><Send size={16} /> Send</Button>
+            </div>
+            {error && <p className="field-error" id="chat-error" role="alert">{error}</p>}
+            {busy && <p className="mt-2 text-sm text-muted" role="status">The agent is working on your request…</p>}
+          </form>
+        </section>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-5">
-            <AnimatePresence initial={false}>
-              {messages.map((m, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-                  className={cn('flex gap-3', m.role === 'user' && 'flex-row-reverse')}>
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ring-2 ring-white dark:ring-zinc-900',
-                    m.role === 'agent' ? 'bg-brand-600 text-white' : 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
-                    {m.role === 'agent' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                  </span>
-                  <div className={cn('max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm',
-                    m.role === 'agent' ? 'rounded-tl-md bg-zinc-100 text-zinc-800 ring-1 ring-inset ring-zinc-200/60 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700/50' : 'rounded-tr-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900')}>
-                    {m.text}
-                    {streaming && m.role === 'agent' && i === messages.length - 1 && (
-                      <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-brand-500 align-text-bottom" aria-hidden />
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {busy && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-zinc-100/80 bg-white p-4 shadow-soft dark:border-zinc-800/80 dark:bg-zinc-900">
-                <p className="flex items-center gap-2 text-xs font-semibold text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {streaming ? 'Writing your reply…' : 'Agent is working…'}</p>
-                <div className="mt-3">
+        <aside className="space-y-6" aria-label="Chat tools">
+          <section className="panel">
+            {busy ? (
+              <>
+                <CardHeader title="Run progress" />
+                <div className="px-4">
                   <PipelineSteps compact steps={AGENT_STEPS} stateFor={(key) => {
-                    const i = AGENT_STEPS.findIndex((s) => s.key === key)
-                    return i < step ? 'done' : i === step ? 'current' : 'queued'
+                    const index = AGENT_STEPS.findIndex((stage) => stage.key === key)
+                    return index < step ? 'done' : index === step ? 'current' : 'queued'
                   }} />
                 </div>
-              </motion.div>
+              </>
+            ) : (
+              <>
+                <CardHeader title="Start with a company" />
+                {suggestions.map((company) => (
+                  <button type="button" key={company} className="board-button border-t border-rule" onClick={() => ask(`Research ${company} and draft mails`)}>
+                    <span>Research {company}</span><ArrowRight size={16} className="text-muted" />
+                  </button>
+                ))}
+              </>
             )}
-            <div ref={bottomRef} />
-          </div>
-
-          <div className="border-t border-zinc-100/80 p-4 dark:border-zinc-800/80">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} onClick={() => ask(s)} disabled={busy}
-                  className="rounded-full border border-zinc-200/80 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700/80 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-brand-400/50">
-                  {s}
-                </button>
-              ))}
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); ask(input) }} className="flex gap-2">
-              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Research a company and draft mails…" className="input" />
-              <Button type="submit" variant="brand" disabled={busy || !input.trim()}><Send className="h-4 w-4" /> Send</Button>
-            </form>
-          </div>
-        </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <div className="border-b border-zinc-100/80 px-6 py-4 dark:border-zinc-800/80">
-              <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"><Mail className="h-4 w-4 text-brand-500" /> Drafts from this chat</h3>
-            </div>
-            <div className="space-y-3 p-5">
-              {drafts.length === 0 && <p className="text-sm leading-relaxed text-zinc-500">No drafts yet — ask the agent to research a company and they'll appear here, ready for approval.</p>}
-              {drafts.map((d) => (
-                <div key={d.to} className="rounded-xl border border-zinc-100/80 bg-zinc-50/60 p-3.5 ring-1 ring-inset ring-zinc-100/60 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-800/40 dark:ring-zinc-800/60 dark:hover:bg-zinc-800/70">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={d.name} size="sm" />
-                    <div className="min-w-0"><p className="truncate text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{d.name}</p><p className="truncate font-mono text-[11px] text-zinc-400">{d.to}</p></div>
-                  </div>
-                  <p className="mt-2 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-300">{d.subject}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-          <Card className="bg-zinc-900 p-5 text-white dark:bg-white dark:text-zinc-900">
-            <p className="text-sm font-bold tracking-tight">How approval works</p>
-            <p className="mt-1.5 text-xs leading-relaxed opacity-80">Drafts never send on their own. Approve one in Drafts, or reply YES on WhatsApp — the sender then sends one mail every 5 minutes, PDF attached, and logs every message ID.</p>
-          </Card>
-        </div>
+          </section>
+          <section className="panel">
+            <CardHeader title="Drafts from this chat" action={<Link to="/drafts" className="text-link">All drafts</Link>} />
+            {!drafts.length && <p className="p-5 text-sm text-muted">Drafts will appear here after the agent writes them.</p>}
+            {drafts.map((draft) => (
+              <article key={`${draft.company}-${draft.to}`} className="ledger-row p-4">
+                <p className="text-sm font-semibold">{draft.name}</p>
+                <p className="break-all font-mono text-xs text-muted">{draft.to}</p>
+                <p className="mt-2 text-sm">{draft.subject}</p>
+              </article>
+            ))}
+          </section>
+          <p className="border-t border-rule pt-3 text-sm text-muted">Approve company drafts in the workspace or reply YES in WhatsApp.</p>
+        </aside>
       </div>
-    </div>
+    </>
   )
 }

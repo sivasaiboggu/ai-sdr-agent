@@ -151,24 +151,28 @@ uvicorn backend.app.api:app --reload --port 8000
 Run the dashboard:
 
 ```bash
-cd frontend && npm install && npm run dev   # http://localhost:5173
+cd frontend && npm ci && npm run dev
 ```
 
-The dashboard is a production-style SaaS UI (Tailwind CSS + shadcn-style
-components, Framer Motion, Lucide icons, Recharts, Inter, dark/light theme):
-Overview with activity charts and reply breakdown, Campaigns, verified Leads
-table with lead scores, Draft mails with expandable approval cards, Replies
-with classifications and next steps, and Agent chat with live pipeline steps.
-It talks to the same FastAPI backend (`/api/chat`, `/api/campaigns`) and falls
-back to seeded demo data when the API is not running.
+The [Outreach Ledger brief](docs/outreach-ledger.md) documents the workspace,
+screen plan, OKLCH tokens, measured contrast, and local verification. The
+frontend uses React, TypeScript, Vite, Tailwind, and Lucide. It calls the FastAPI
+backend and labels demo records when the backend is unavailable.
 
-Run tests:
+Run the frontend unit, production build, and browser checks:
 
 ```bash
-pytest tests/ -q   # 60 tests: writer quality gate, lead scoring, sender
-                   # guard, approval flow, WhatsApp handler, API validation,
-                   # /api prefix parity, CORS preflight, Gemini SDK path,
-                   # Postgres translation + live round-trip, boards registry
+cd frontend
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Run the backend suite from the repository root:
+
+```bash
+python -m pytest tests/ -q
 ```
 
 ## Deployment
