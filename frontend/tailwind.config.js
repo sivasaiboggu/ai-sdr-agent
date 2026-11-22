@@ -1,5 +1,18 @@
 import type { Config } from 'tailwindcss'
 
+/**
+ * Design tokens — one system, used by every page.
+ *
+ * Colours are OKLCH (see frontend/src/lib/tokens.json for the full
+ * token file, hex fallbacks and the WCAG contrast table). The values
+ * below are the exact OKLCH equivalents of the hex ramp this dashboard
+ * shipped with since round 9 — same colours, a perceptual colour
+ * space, so future tints can be derived by changing lightness only.
+ * One accent (indigo), one warm-neutral canvas (zinc), semantic hues
+ * reserved for status meaning only. Accent stays under 10% of any
+ * screen: it marks the current pipeline step, the primary action and
+ * the focus ring, and nothing else.
+ */
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -10,16 +23,26 @@ export default {
       },
       colors: {
         brand: {
-          50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
-          400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
-          800: '#3730a3', 900: '#312e81',
+          50: 'oklch(0.962 0.018 272.31 / <alpha-value>)',
+          100: 'oklch(0.930 0.033 272.79 / <alpha-value>)',
+          200: 'oklch(0.870 0.062 274.04 / <alpha-value>)',
+          300: 'oklch(0.785 0.104 274.71 / <alpha-value>)',
+          400: 'oklch(0.680 0.158 276.93 / <alpha-value>)',
+          500: 'oklch(0.585 0.204 277.12 / <alpha-value>)',
+          600: 'oklch(0.511 0.230 276.97 / <alpha-value>)',
+          700: 'oklch(0.457 0.215 277.02 / <alpha-value>)',
+          800: 'oklch(0.398 0.177 277.37 / <alpha-value>)',
+          900: 'oklch(0.359 0.135 278.70 / <alpha-value>)',
         },
         // One accent per meaning, used everywhere a status is shown.
         // Success / info / warning / danger never borrow each other's hue.
-        success: { 500: '#10b981', 600: '#059669' },
-        info: { 500: '#0ea5e9', 600: '#0284c7' },
-        warning: { 500: '#f59e0b', 600: '#d97706' },
-        danger: { 500: '#f43f5e', 600: '#e11d48' },
+        // These are fills and dots (non-text); badge text uses the
+        // darker built-in 700 shades, which pass AA on their 50 tints
+        // (see tokens.json contrast table).
+        success: { 500: 'oklch(0.696 0.149 162.48 / <alpha-value>)', 600: 'oklch(0.596 0.127 163.23 / <alpha-value>)' },
+        info: { 500: 'oklch(0.685 0.148 237.32 / <alpha-value>)', 600: 'oklch(0.588 0.139 241.97 / <alpha-value>)' },
+        warning: { 500: 'oklch(0.769 0.165 70.08 / <alpha-value>)', 600: 'oklch(0.666 0.157 58.32 / <alpha-value>)' },
+        danger: { 500: 'oklch(0.645 0.215 16.44 / <alpha-value>)', 600: 'oklch(0.586 0.222 17.58 / <alpha-value>)' },
       },
       boxShadow: {
         // Layered, low-opacity shadows: depth without the heavy "card" look.
@@ -27,22 +50,10 @@ export default {
         soft: '0 2px 6px -2px rgba(16,24,40,.05), 0 8px 20px -8px rgba(16,24,40,.08)',
         pop: '0 12px 32px -8px rgba(16,24,40,.18)',
       },
-      keyframes: {
-        shimmer: { '0%': { backgroundPosition: '-400px 0' }, '100%': { backgroundPosition: '400px 0' } },
-        'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        'scale-in': {
-          '0%': { opacity: '0', transform: 'translateY(-6px) scale(.98)' },
-          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-      },
-      animation: {
-        shimmer: 'shimmer 1.4s linear infinite',
-        'fade-up': 'fade-up .4s cubic-bezier(.22,1,.36,1) both',
-        'scale-in': 'scale-in .18s cubic-bezier(.22,1,.36,1) both',
-      },
+      // No entrance keyframes: motion is only for state changes
+      // (spinners, the streaming caret, press scale). The shimmer /
+      // fade-up / scale-in definitions lived here unused after round 9
+      // removed staggered entrances — dead animation is still slop.
     },
   },
   plugins: [],

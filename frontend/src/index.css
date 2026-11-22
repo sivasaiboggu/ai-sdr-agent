@@ -5,6 +5,10 @@
 
 /*
  * Design tokens — one system, used by every page.
+ * Full token file: frontend/src/lib/tokens.json (OKLCH + hex
+ * fallbacks, contrast table, motion rules). Colours here are the
+ * Tailwind zinc ramp; the single accent is indigo (brand-600 in
+ * tailwind.config.js, OKLCH 0.511 0.230 276.97, #4f46e5).
  * Surfaces: white / zinc-900 cards on a flat zinc-50 / zinc-950 canvas.
  * No decorative gradients, glows or glass: a surface is a surface, and
  * the only colour that means anything is the single indigo accent.

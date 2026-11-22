@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { ArrowRight, Building2, CheckCircle2, Mail, Plus, Reply, Users } from 'lucide-react'
+import { ArrowRight, Building2, Mail, Plus, Reply, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ActivityChart, ReplyDonut } from '../components/charts'
-import { Avatar, Badge, Button, Card, CardHeader, DemoDataNotice, PageHeader, Skeleton } from '../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, DemoDataNotice, PageHeader, PipelineSteps, Skeleton } from '../components/ui'
 import { AGENT_STEPS, REPLY_MIX, REPLY_MIX_COLORS, SEED_CAMPAIGNS, SEED_PEOPLE, SEED_REPLIES, useLiveData, type Health } from '../lib/data'
 import { buildActivity } from '../lib/activity'
 import { timeAgo } from '../lib/utils'
@@ -165,25 +165,10 @@ export default function Dashboard({ health }: { health: Health | null }) {
         <div className="card xl:col-span-2">
           <CardHeader title="Agent pipeline" subtitle="Research, people, writer, approval, sender, tracker"
             action={<Link to="/chat" className="text-xs font-semibold text-brand-600 hover:text-brand-500">Open agent chat</Link>} />
-          <ol className="space-y-0 p-2">
-            {AGENT_STEPS.map((s, i) => {
-              const state = stepState(s.key)
-              return (
-                <li key={s.key}
-                  className="flex items-start gap-4 rounded-xl px-3 py-3 transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/50">
-                  <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white shadow-sm ring-2 ring-white dark:ring-zinc-900">
-                    {i + 1}
-                    {i < AGENT_STEPS.length - 1 && <span className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-zinc-200 dark:bg-zinc-700" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{s.label}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{s.detail}</p>
-                  </div>
-                  {state === 'done' ? <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-500" /> : <Badge tone={state === 'waiting' ? 'warning' : 'muted'}>{state === 'waiting' ? 'Waiting on you' : 'Queued'}</Badge>}
-                </li>
-              )
-            })}
-          </ol>
+          <PipelineSteps steps={AGENT_STEPS} stateFor={(key) => {
+            const s = stepState(key)
+            return s === 'done' ? 'done' : s === 'waiting' ? 'waiting' : 'queued'
+          }} />
         </div>
 
         <div className="card">

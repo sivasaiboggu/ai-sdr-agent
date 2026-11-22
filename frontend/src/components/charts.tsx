@@ -48,7 +48,7 @@ export function ReplyDonut({ mix = REPLY_MIX }: { mix?: typeof REPLY_MIX }) {
     return <p className="rounded-xl border border-dashed border-zinc-200 px-4 py-10 text-center text-sm leading-relaxed text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">No replies logged yet — the breakdown appears once the tracker classifies a real reply.</p>
   }
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex flex-col items-start gap-4">
       <div className="h-40 w-40 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -59,11 +59,11 @@ export function ReplyDonut({ mix = REPLY_MIX }: { mix?: typeof REPLY_MIX }) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="min-w-0 flex-1 space-y-2.5 text-sm">
+      <ul className="w-full space-y-2.5 text-sm">
         {mix.map((d) => (
           <li key={d.name} className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white dark:ring-zinc-900" style={{ background: d.color }} />
-            <span className="text-zinc-600 dark:text-zinc-300">{d.name}</span>
+            <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-300">{d.name}</span>
             <span className="tabular ml-auto pl-4 font-bold text-zinc-900 dark:text-zinc-100">{d.value}</span>
           </li>
         ))}

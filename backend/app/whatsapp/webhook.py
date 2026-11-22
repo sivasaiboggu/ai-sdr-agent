@@ -13,7 +13,7 @@ from backend.app.graph import run_campaign
 from backend.app import memory as mem
 from backend.app.whatsapp.client import send_whatsapp, WHATSAPP_VERIFY_TOKEN
 
-HELP = """👋 Hi, I'm your AI SDR Agent.
+HELP = """Hi, I'm your AI SDR Agent.
 
 Try:
 • research <company> — e.g. research iion
@@ -70,9 +70,9 @@ def handle_text(sender: str, text: str) -> str:
         people = "\n".join(
             f"• {p['name']} — {p['title']} — {p['email']}"
             for p in result["mailable"]) or "No verified emails found."
-        return (f"🔍 {result['profile']['name']}\n{result['profile']['summary']}\n\n"
-                f"👥 People (verified only):\n{people}\n\n"
-                f"✍️ {len(result['drafts'])} draft mails ready. Reply 'draft mails' to see them, or 'YES' to send.")
+        return (f"{result['profile']['name']}\n{result['profile']['summary']}\n\n"
+                f"People (verified only):\n{people}\n\n"
+                f"{len(result['drafts'])} draft mails ready. Reply 'draft mails' to see them, or 'YES' to send.")
 
     if low in ("draft mails", "drafts", "show drafts"):
         pending = _PENDING.get(sender)
@@ -98,10 +98,10 @@ def handle_text(sender: str, text: str) -> str:
         _PENDING.pop(sender, None)
         lines = "\n".join(f"• {s['to']}: {s['status']}" for s in sent["sent"])
         if sent["sent"] and all(s["status"] == "draft (dry-run)" for s in sent["sent"]):
-            return (f"✅ Approved — but this was a DRY-RUN, nothing was really sent "
+            return (f"Approved — but this was a DRY-RUN, nothing was really sent "
                     f"(Gmail sending is off in the backend). Set GMAIL_SEND_ENABLED=true "
                     f"and a Gmail app password, then research again and reply YES:\n{lines}")
-        return f"✅ Sending {len(sent['sent'])} mails, one every 5 minutes, PDF attached:\n{lines}"
+        return f"Sending {len(sent['sent'])} mails, one every 5 minutes, PDF attached:\n{lines}"
 
     if low in ("no", "edit", "don't send"):
         _PENDING.pop(sender, None)
@@ -115,8 +115,8 @@ def handle_text(sender: str, text: str) -> str:
         finally:
             conn.close()
         c = "\n".join(f"• {r[0]}" for r in companies) or "No companies yet."
-        m = "\n".join(f"• {r[0]} → {r[1]}: {r[2]}" for r in mails) or "No mails yet."
-        return f"📊 Status\nCompanies:\n{c}\n\nMails:\n{m}"
+        m = "\n".join(f"• {r[0]} — {r[1]}: {r[2]}" for r in mails) or "No mails yet."
+        return f"Status\nCompanies:\n{c}\n\nMails:\n{m}"
 
     if low == "replies":
         conn = mem.connect()
@@ -126,7 +126,7 @@ def handle_text(sender: str, text: str) -> str:
             conn.close()
         if not rows:
             return "No classified replies yet. I'll check replies and tell you when one comes in."
-        return "\n".join(f"• {r[0]} → {r[1]}: {r[2]}" for r in rows)
+        return "\n".join(f"• {r[0]} — {r[1]}: {r[2]}" for r in rows)
 
     return ("I didn't understand that. Reply 'help' for the menu, or try "
             "'research iion'.")

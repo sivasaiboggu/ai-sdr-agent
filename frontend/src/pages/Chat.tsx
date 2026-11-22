@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Check, Loader2, Mail, Send, User, WifiOff } from 'lucide-react'
+import { Bot, Loader2, Mail, Send, User, WifiOff } from 'lucide-react'
 import { AGENT_STEPS, API_BASE_LABEL, API_BASE_URL, checkHealth, invalidateLiveData, sendChat, streamChat, type Draft } from '../lib/data'
-import { Alert, Avatar, Badge, Button, Card, PageHeader } from '../components/ui'
+import { Alert, Avatar, Badge, Button, Card, PageHeader, PipelineSteps } from '../components/ui'
 import type { ToastTone } from '../App'
 import { cn } from '../lib/utils'
 
@@ -147,10 +147,8 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
               <p className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">SDR Agent</p>
               <p className={cn('flex items-center gap-1.5 text-xs',
                 apiStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : apiStatus === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500')}>
-                <span className={cn('relative flex h-1.5 w-1.5 rounded-full',
-                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')}>
-                  {apiStatus === 'online' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
-                </span>
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full',
+                  apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'offline' ? 'bg-amber-500' : 'bg-zinc-400')} />
                 {apiStatus === 'online' ? 'Online — LangGraph · Gemini · Gmail'
                   : apiStatus === 'offline' ? `Backend offline — demo mode (${API_BASE_LABEL})`
                     : 'Checking backend…'}
@@ -182,16 +180,11 @@ export default function Chat({ onToast }: { onToast: (msg: string, tone?: ToastT
             {busy && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-zinc-100/80 bg-white p-4 shadow-soft dark:border-zinc-800/80 dark:bg-zinc-900">
                 <p className="flex items-center gap-2 text-xs font-semibold text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {streaming ? 'Writing your reply…' : 'Agent is working…'}</p>
-                <div className="mt-3 space-y-2">
-                  {AGENT_STEPS.map((s, i) => (
-                    <div key={s.key} className="flex items-center gap-2.5 text-sm">
-                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ring-2 ring-white dark:ring-zinc-900',
-                        i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-brand-600 text-white ring-brand-500/30' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800')}>
-                        {i < step ? <Check className="h-3 w-3" /> : i + 1}
-                      </span>
-                      <span className={i <= step ? 'font-medium text-zinc-800 dark:text-zinc-100' : 'text-zinc-400'}>{s.label}</span>
-                    </div>
-                  ))}
+                <div className="mt-3">
+                  <PipelineSteps compact steps={AGENT_STEPS} stateFor={(key) => {
+                    const i = AGENT_STEPS.findIndex((s) => s.key === key)
+                    return i < step ? 'done' : i === step ? 'current' : 'queued'
+                  }} />
                 </div>
               </motion.div>
             )}

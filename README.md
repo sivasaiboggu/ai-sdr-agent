@@ -87,20 +87,20 @@ curl -X POST http://localhost:8000/whatsapp/test \
 ### Demo conversation (WhatsApp)
 ```
 You:  research iion
-Bot:  🔍 iion — Self-serve ad platform for gaming (immersiion)...
-      👥 People (verified only):
+Bot:  iion — Self-serve ad platform for gaming (immersiion)...
+      People (verified only):
       • Sanjaya Molligoda — Co-Founder — sanjaya@iion.io
       • Wout van Damme — Co-Founder — wout@iion.io
-      ✍️ 4 draft mails ready. Reply 'draft mails' to see them, or 'YES' to send.
+      4 draft mails ready. Reply 'draft mails' to see them, or 'YES' to send.
 You:  draft mails
 Bot:  To: Wout van Damme <wout@iion.io>
       Subject: I build autonomous agents with LangGraph...
       [full mail]
       Reply YES to send (5-min gap), or NO to change something.
 You:  YES
-Bot:  ✅ Sending 4 mails, one every 5 minutes, PDF attached...
+Bot:  Sending 4 mails, one every 5 minutes, PDF attached...
 You:  status
-Bot:  📊 Status — Companies: iion … Mails: …
+Bot:  Status — Companies: iion … Mails: …
 ```
 
 ### 2-minute demo flow
@@ -223,6 +223,12 @@ Compose builds both images (see `backend/Dockerfile`,
 starting the frontend. Both Dockerfiles are build-tested (v0.9); a
 `.dockerignore` keeps venvs, `node_modules`, local `.db` files and `.env`
 out of the build context.
+
+## v0.9.7 — what changed (22 Nov 2026)
+
+- **Master-prompt polish — OKLCH tokens, one signature rail** — the design system is now OKLCH with hex fallbacks: the brand and semantic ramps in `tailwind.config.js` are the exact OKLCH equivalents of the round-9 hex colours (same rendered colour), with an `<alpha-value>` placeholder so Tailwind opacity modifiers keep working; the full token file lives at `frontend/src/lib/tokens.json` with a WCAG contrast table (every text pair used passes AA; the table honestly records the two that don't — white on brand-500 at 4.47:1 and zinc-400 metadata at 2.56:1, both restricted to large text / secondary metadata). The signature visual is now one shared component instead of two near-copies: `PipelineSteps` in `components/ui.tsx` — the numbered indigo rail with a hairline connector and a check when done — used by the Dashboard pipeline list and by Agent chat while a run is in progress. Dead `shimmer` / `fade-up` / `scale-in` keyframes are out of the Tailwind config, and the pulsing `animate-ping` live dots in the sidebar and chat header are static dots now — a pulse is ambient motion, and motion here is only for state changes.
+- **WhatsApp speaks plain text** — the bot prefixed replies with emoji (🔍 👥 ✍️ ✅ 📊) and `→` arrows, which the copy guard bans in the dashboard but never scanned in the backend. Replies are plain text now ("People (verified only):", "Sending 4 mails…"), the README demo transcript matches, and the copy guard now scans all of `backend/app`, not just `api.py`.
+- **Tests** — 90 passed, 2 skipped (was 88), plus 10 frontend tests (was 5): new `tokens.test.mjs` guards the token file, and a WhatsApp test asserts no emoji or decorative symbol in any bot reply. Build green; the five round-9 backend invariants were re-verified live (writer refuses unresearched companies, `POST /replies` persists the class, interest beats out-of-office, `RESUME_PATH` resolves to the real PDF).
 
 ## v0.9.6 — what changed (22 Nov 2026)
 

@@ -64,6 +64,32 @@ def test_whatsapp_yes_sends_when_gmail_enabled(monkeypatch, tmp_path):
 
 def test_whatsapp_help():
     assert "research" in handle_text("+919573719115", "help").lower()
+
+
+def test_whatsapp_replies_have_no_emoji_or_symbols():
+    """Round 10: the bot used to prefix replies with emoji (🔍 👥 ✍️ ✅
+    📊) and '→' arrows — the same decoration the copy guard bans in
+    the dashboard. Every command's reply must be plain text."""
+    import re
+    from backend.app.whatsapp.webhook import handle_text as ht
+
+    symbol_re = re.compile(
+        r"[✨⭐🎉🚀💡🔥👉➜→←↑↓✓✔✗✘●○■◆►▶◀★☆]"
+        r"|[\U0001F300-\U0001FAFF]"
+        r"|[\u2600-\u27BF]"
+    )
+    handle_text("+919573719115", "research iion")
+    replies = [
+        ht("+919573719115", "help"),
+        ht("+919573719115", "research iion"),
+        ht("+919573719115", "draft mails"),
+        ht("+919573719115", "status"),
+        ht("+919573719115", "replies"),
+        ht("+919573719115", "blabla"),
+        ht("+919573719115", "NO"),
+    ]
+    for reply in replies:
+        assert not symbol_re.search(reply), f"decorative symbol in {reply[:80]!r}"
 def test_whatsapp_research_iion():
     reply = handle_text("+919573719115", "research iion")
     assert "iion" in reply.lower()

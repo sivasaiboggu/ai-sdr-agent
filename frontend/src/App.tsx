@@ -89,7 +89,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
           <footer className="mt-10 flex flex-wrap items-center gap-2 border-t border-zinc-200/70 pt-5 text-xs text-zinc-400 dark:border-zinc-800/70">
-            <span>SDR Agent v0.9.6 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
+            <span>SDR Agent v0.9.7 — LangGraph · FastAPI · Gemini (free tier) · Apollo · Gmail</span>
             <span className="ml-auto">Verified emails only · Nothing sends without approval · 5-minute gap</span>
           </footer>
         </main>

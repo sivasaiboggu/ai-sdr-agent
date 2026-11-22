@@ -68,9 +68,10 @@ export function Sidebar({ open, onClose, health }: { open: boolean; onClose: () 
                 ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400'
                 : 'bg-zinc-100 text-zinc-500 ring-zinc-600/20 dark:bg-zinc-800 dark:text-zinc-400',
             )}>
-            {live && (
-              <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" /></span>
-            )}
+            {/* Static status dot: a pulsing dot is ambient motion, and
+                motion here is only for state changes. The dot's colour
+                already says live vs demo. */}
+            {live && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />}
             {live ? 'LIVE' : 'DEMO'}
           </span>
         </div>

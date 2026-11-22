@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "frontend" / "src"
 API = ROOT / "backend" / "app" / "api.py"
+BACKEND = ROOT / "backend" / "app"
 
 BANNED_WORDS = [
     "seamless", "supercharge", "elevate", "unlock", "revolution",
@@ -67,4 +68,21 @@ def test_no_slop_in_frontend():
 
 def test_no_slop_in_api_strings():
     hits = _scan(API)
+    assert not hits, "\n".join(hits)
+
+
+def test_no_slop_in_backend_strings():
+    """Round 10: the guard used to cover only the frontend and api.py,
+    so the WhatsApp bot kept sending emoji-prefixed replies (🔍 👥 ✍️
+    ✅ 📊) and '→' arrows that the same guard bans everywhere else.
+    Every user-facing string in the backend is held to the same bar.
+    Docstrings are skipped by _scan only when they start the line with
+    '*' or '//' — the scan below also skips lines that are pure
+    comments, so explanatory comments may name a symbol without
+    failing the build."""
+    hits = []
+    for path in sorted(BACKEND.rglob("*.py")):
+        if path == API:
+            continue
+        hits.extend(_scan(path))
     assert not hits, "\n".join(hits)

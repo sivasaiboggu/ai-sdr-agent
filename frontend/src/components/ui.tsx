@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Info } from 'lucide-react'
+import { Check, Info } from 'lucide-react'
 import { avatarColor, cn, initials } from '../lib/utils'
 
 export function Button({
@@ -118,5 +118,65 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
+  )
+}
+
+export type PipelineStepState = 'done' | 'current' | 'waiting' | 'queued'
+
+/** The signature visual: the numbered pipeline rail. One indigo
+ * numbered circle per agent step, joined by a hairline, a check when
+ * the step is done. The same rail appears on the Dashboard pipeline
+ * list and in Agent chat while a run is in progress — the product is
+ * a pipeline, and the rail shows where a campaign is in it. States
+ * are derived from data by the caller, never hardcoded: a step is
+ * done only when the records say it ran. */
+export function PipelineSteps({ steps, stateFor, compact = false, trailing }: {
+  steps: readonly { key: string; label: string; detail: string }[]
+  stateFor: (key: string) => PipelineStepState
+  compact?: boolean
+  trailing?: (state: PipelineStepState, key: string) => ReactNode
+}) {
+  return (
+    <ol className={compact ? 'space-y-2' : 'space-y-0 p-2'}>
+      {steps.map((s, i) => {
+        const state = stateFor(s.key)
+        const done = state === 'done'
+        const current = state === 'current' || state === 'waiting'
+        return (
+          <li key={s.key}
+            className={compact
+              ? 'flex items-center gap-2.5 text-sm'
+              : 'flex items-start gap-4 rounded-xl px-3 py-3 transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/50'}>
+            <span className={cn(
+              'relative flex shrink-0 items-center justify-center rounded-full font-bold text-white shadow-sm ring-2 ring-white dark:ring-zinc-900',
+              compact ? 'h-5 w-5 text-[10px]' : 'h-8 w-8 text-xs',
+              done ? 'bg-emerald-500' : current ? 'bg-brand-600' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800',
+              current && !compact && 'ring-brand-500/30',
+            )}>
+              {done ? <Check className={compact ? 'h-3 w-3' : 'h-4 w-4'} /> : i + 1}
+              {!compact && i < steps.length - 1 && (
+                <span className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-zinc-200 dark:bg-zinc-700" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className={cn(
+                'text-sm font-semibold tracking-tight',
+                compact
+                  ? (done || current ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-400')
+                  : 'text-zinc-900 dark:text-zinc-100',
+              )}>{s.label}</p>
+              {!compact && <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{s.detail}</p>}
+            </div>
+            {!compact && (trailing
+              ? trailing(state, s.key)
+              : state === 'waiting'
+                ? <Badge tone="warning">Waiting on you</Badge>
+                : state === 'queued'
+                  ? <Badge tone="muted">Queued</Badge>
+                  : null)}
+          </li>
+        )
+      })}
+    </ol>
   )
 }
