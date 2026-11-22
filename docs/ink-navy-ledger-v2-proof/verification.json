@@ -1,0 +1,94 @@
+{
+  "baselineCommit": "f3738a952db5a7c1ff21128d3a915ccc4db72875",
+  "environment": {
+    "node": "24.22.3",
+    "chromium": "156.0.8078.79",
+    "postgresql": "18.7"
+  },
+  "backend": {
+    "passed": 98,
+    "skipped": 0,
+    "smtp": "mocked",
+    "resume": "synthetic test PDF"
+  },
+  "frontend": {
+    "unitPassed": 8,
+    "playwrightPassed": 8,
+    "productionBuild": "passed",
+    "npmAuditVulnerabilities": 0
+  },
+  "browser": {
+    "axe": "4.14.1",
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "routeAudits": 64,
+    "overlayAudits": 8,
+    "axeViolations": 0,
+    "horizontalOverflows": 0,
+    "pairedScreenshots": 12
+  },
+  "lighthouse": {
+    "version": "13.6.0",
+    "formFactor": "mobile",
+    "throttling": "simulated mobile defaults",
+    "fixture": "local production build with synthetic API records and Brotli-compressed static assets",
+    "routes": {
+      "Overview": {
+        "scores": {
+          "performance": 99,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100,
+          "agentic-browsing": 100
+        },
+        "metrics": {
+          "firstContentfulPaintMs": 753.06,
+          "largestContentfulPaintMs": 1963.59,
+          "speedIndexMs": 753.06,
+          "totalBlockingTimeMs": 74,
+          "cumulativeLayoutShift": 0
+        }
+      },
+      "Draft mails": {
+        "scores": {
+          "performance": 99,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100,
+          "agentic-browsing": 100
+        },
+        "metrics": {
+          "firstContentfulPaintMs": 760.62,
+          "largestContentfulPaintMs": 1987.25,
+          "speedIndexMs": 760.62,
+          "totalBlockingTimeMs": 19.5,
+          "cumulativeLayoutShift": 0
+        }
+      },
+      "Agent chat": {
+        "scores": {
+          "performance": 95,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100,
+          "agentic-browsing": 100
+        },
+        "metrics": {
+          "firstContentfulPaintMs": 754.56,
+          "largestContentfulPaintMs": 2151.12,
+          "speedIndexMs": 1158.48,
+          "totalBlockingTimeMs": 209,
+          "cumulativeLayoutShift": 0.0002
+        }
+      }
+    }
+  }
+}

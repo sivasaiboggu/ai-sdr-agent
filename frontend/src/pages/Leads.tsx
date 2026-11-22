@@ -3,7 +3,7 @@ import { Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { Avatar, Badge, DemoDataNotice, EmptyState, LoadingState, PageHeader } from '../components/ui'
 import LeadDrawer from '../components/LeadDrawer'
-import { SEED_DRAFTS, SEED_PEOPLE, useLiveData, type Person } from '../lib/data'
+import { isPendingMail, sameCompany, SEED_DRAFTS, SEED_PEOPLE, useLiveData, type Person } from '../lib/data'
 import type { ToastTone } from '../App'
 
 const filters = { all: 'All leads', verified: 'Verified', unverified: 'Unverified' } as const
@@ -12,25 +12,33 @@ type Filter = keyof typeof filters
 export default function Leads({ query, onToast }: { query: string; onToast: (msg: string, tone?: ToastTone) => void }) {
   const { data, loading } = useLiveData()
   const [params, setParams] = useSearchParams()
-  const [filter, setFilter] = useState<Filter>('all')
+  const filter: Filter = params.get('verification') === 'verified' ? 'verified' : params.get('verification') === 'unverified' ? 'unverified' : 'all'
+  const sort = params.get('sort') === 'name' ? 'name' : 'score'
   const [selected, setSelected] = useState<Person | null>(null)
   const company = params.get('company') ?? ''
   const live = Boolean(data?.live)
   const allPeople = live ? data?.people ?? [] : SEED_PEOPLE
   const companies = Array.from(new Set([...allPeople.map((person) => person.company), ...(company ? [company] : [])])).sort()
-  const verified = allPeople.filter((person) => person.verified).length
-  const counts = { all: allPeople.length, verified, unverified: allPeople.length - verified }
   const search = query.trim().toLowerCase()
-  const list = allPeople.filter((p) => {
-    if (filter !== 'all' && p.verified !== (filter === 'verified')) return false
-    if (company && p.company.toLowerCase() !== company.toLowerCase()) return false
-    return [p.name, p.email, p.title, p.company].some((field) => field.toLowerCase().includes(search))
-  })
+  const matches = allPeople.filter((person) =>
+    (!company || sameCompany(person.company, company)) &&
+    [person.name, person.email, person.title, person.company].some((field) => field.toLowerCase().includes(search)),
+  )
+  const verified = matches.filter((person) => person.verified).length
+  const counts = { all: matches.length, verified, unverified: matches.length - verified }
+  const list = matches.filter((person) => filter === 'all' || person.verified === (filter === 'verified'))
+    .sort((a, b) => (sort === 'score' ? b.score - a.score : 0) || a.name.localeCompare(b.name))
+
+  function setFilter(key: string, value: string) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
   const draft = selected?.email && (live
-    ? data?.campaigns?.mails.find((m) => m.email.toLowerCase() === selected.email.toLowerCase() && m.company === selected.company &&
-      (m.status.startsWith('draft') || m.status === 'ready-to-send'))
+    ? data?.campaigns?.mails.find((m) => m.email.toLowerCase() === selected.email.toLowerCase() && sameCompany(m.company, selected.company) && isPendingMail(m.status))
     : SEED_DRAFTS.find((m) => m.to.toLowerCase() === selected.email.toLowerCase() && m.company === selected.company))
-  const peers = selected ? allPeople.filter((p) => p !== selected && p.company === selected.company) : []
+  const peers = selected ? allPeople.filter((p) => p !== selected && sameCompany(p.company, selected.company)) : []
 
   return (
     <>
@@ -41,20 +49,25 @@ export default function Leads({ query, onToast }: { query: string; onToast: (msg
           <div className="panel ruled">
             <div className="filter-bar" aria-label="Lead filters">
               {(Object.keys(filters) as Filter[]).map((value) => (
-                <button key={value} type="button" className="filter-button" onClick={() => setFilter(value)} aria-pressed={filter === value}>
+                <button key={value} type="button" className="filter-button" onClick={() => setFilter('verification', value === 'all' ? '' : value)} aria-pressed={filter === value}>
                   {filters[value]} <span className="text-xs tabular">{counts[value]}</span>
                 </button>
               ))}
-              <select value={company} onChange={(event) => setParams(event.target.value ? { company: event.target.value } : {})}
+              <select value={company} onChange={(event) => setFilter('company', event.target.value)}
                 aria-label="Filter by company" className="input max-w-full">
                 <option value="">All companies</option>
                 {companies.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <select value={sort} className="input sort-select" aria-label="Sort leads"
+                onChange={(event) => setFilter('sort', event.target.value === 'score' ? '' : event.target.value)}>
+                <option value="score">Highest score</option>
+                <option value="name">Name A–Z</option>
               </select>
             </div>
             {list.length === 0 ? (
               <EmptyState icon={Search} title="No matching leads" body="Clear the search or try a different company or verification filter." />
             ) : (
-              <table className="lead-table" role="table">
+              <table key={`${company}-${filter}-${sort}`} className="lead-table record-enter" role="table">
                 <caption className="sr-only">{list.length} matching leads</caption>
                 <thead role="rowgroup"><tr role="row">
                   {['Person', 'Company', 'Email', 'Score', 'Status'].map((label) => <th key={label} scope="col" role="columnheader">{label}</th>)}

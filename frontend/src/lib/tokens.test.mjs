@@ -13,7 +13,7 @@ function luminance(hex) {
 
 test('the ledger ships a twelve-step neutral ramp and two full themes', () => {
   assert.match(tokens.name, /AI SDR Agent/)
-  assert.match(tokens.signature.idea, /copper/)
+  assert.match(tokens.signature.idea, /registration mark/)
   assert.equal(Object.keys(tokens.color.neutral).length, 12)
   assert.deepEqual(Object.keys(tokens.color.modes.light), Object.keys(tokens.color.modes.dark))
 })

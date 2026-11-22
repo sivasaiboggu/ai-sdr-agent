@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS mails (
   subject TEXT, body TEXT, status TEXT, message_id TEXT, sent_at REAL,
   reply_class TEXT, replied_at REAL
 );
+CREATE INDEX IF NOT EXISTS mail_company_email ON mails (lower(company), lower(email), id);
+CREATE TABLE IF NOT EXISTS mail_delivery_claims (
+  company TEXT NOT NULL, email TEXT NOT NULL, PRIMARY KEY(company, email)
+);
 CREATE TABLE IF NOT EXISTS learnings (
   id INTEGER PRIMARY KEY, kind TEXT, text TEXT, outcome TEXT, created_at REAL
 );
@@ -67,6 +71,10 @@ CREATE TABLE IF NOT EXISTS mails (
   id SERIAL PRIMARY KEY, company TEXT, recipient TEXT, email TEXT,
   subject TEXT, body TEXT, status TEXT, message_id TEXT, sent_at DOUBLE PRECISION,
   reply_class TEXT, replied_at DOUBLE PRECISION
+);
+CREATE INDEX IF NOT EXISTS mail_company_email ON mails (lower(company), lower(email), id);
+CREATE TABLE IF NOT EXISTS mail_delivery_claims (
+  company TEXT NOT NULL, email TEXT NOT NULL, PRIMARY KEY(company, email)
 );
 CREATE TABLE IF NOT EXISTS learnings (
   id SERIAL PRIMARY KEY, kind TEXT, text TEXT, outcome TEXT, created_at DOUBLE PRECISION
@@ -318,12 +326,67 @@ def save_mail(conn, company, recipient, email, subject, body, status="draft", me
     conn.commit()
     return cur.lastrowid
 
+PENDING_MAIL = "(status IN ('draft', 'ready-to-send') OR substr(status, 1, 8) = 'failed: ')"
+
+
+def save_drafts(conn, company, drafts):
+    """Keep an existing review version when company research is repeated."""
+    saved = []
+    for draft in drafts:
+        company_email = (company, draft["to"])
+        current = conn.execute(
+            "SELECT id, recipient, email, subject, body, status FROM mails "
+            "WHERE lower(company) = lower(?) AND lower(email) = lower(?) "
+            "AND status NOT IN ('superseded', 'draft (dry-run)') ORDER BY id DESC LIMIT 1",
+            company_email,
+        ).fetchone()
+        if current and current[5] in ("sent", "sending", "already sent (duplicate blocked)"):
+            continue
+        if current and (current[5] in ("draft", "ready-to-send") or current[5].startswith("failed: ")):
+            draft_id, name, email, subject, body, _ = current
+            saved.append({**draft, "id": draft_id, "name": name, "to": email, "subject": subject, "body": body, "company": company})
+            continue
+        draft_id = save_mail(conn, company, draft["name"], draft["to"], draft["subject"], draft["body"])
+        saved.append({**draft, "id": draft_id, "company": company})
+    return saved
+
+
+def pending_drafts(conn, company):
+    """Read the latest reviewable version for each address, including legacy drafts."""
+    return conn.execute(
+        "SELECT id, recipient, email, subject, body, status FROM mails AS candidate "
+        f"WHERE lower(company) = lower(?) AND {PENDING_MAIL} "
+        "AND id = (SELECT MAX(id) FROM mails WHERE lower(company) = lower(candidate.company) "
+        "AND lower(email) = lower(candidate.email) "
+        "AND status NOT IN ('superseded', 'draft (dry-run)')) ORDER BY id DESC",
+        (company,),
+    ).fetchall()
+
+
+def finish_draft(conn, draft_id, status, message_id):
+    # Keep a failed delivery in the queue so the operator can retry it.
+    # A completed dry run stays in the history without counting as sent.
+    if status == "draft (dry-run)":
+        status = "reviewed (dry-run)"
+    conn.execute(
+        "UPDATE mails SET status = ?, message_id = ?, sent_at = ? WHERE id = ? AND status = 'sending'",
+        (status, message_id, time.time() if status == "sent" else None, draft_id),
+    )
+    conn.commit()
+
+
 def record_learning(conn, kind, text, outcome):
     conn.execute(
         "INSERT INTO learnings(kind, text, outcome, created_at) VALUES (?,?,?,?)",
         (kind, text, outcome, time.time()),
     )
     conn.commit()
+
+def bounced_addresses(conn):
+    return {row[0] for row in conn.execute(
+        "SELECT DISTINCT lower(email) FROM mails WHERE status = 'sent' AND reply_class = 'bounce' AND email IS NOT NULL"
+    ).fetchall()}
+
 
 def record_reply(conn, company, email, reply_class):
     """Persist a classified reply against the latest sent mail to that

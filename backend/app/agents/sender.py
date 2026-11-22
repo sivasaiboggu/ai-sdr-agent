@@ -12,6 +12,7 @@ from backend.app.config import settings
 from backend.app import gmail as gmail_mod
 from backend.app.quality import check_draft
 from backend.app import memory as mem
+from backend.app.boards import DO_NOT_MAIL
 
 def gap_seconds() -> int:
     return settings.send_gap_seconds
@@ -44,35 +45,46 @@ def send_drafts(state: dict, dry_run: bool | None = None) -> dict:
     conn = mem.connect()
     sent = []
     last_sent_at: float | None = None
+    blocked_addresses = {entry["email"].lower() for entry in DO_NOT_MAIL}
+
+    def record(draft, status, message_id=None):
+        if draft.get("approval_id"):
+            mem.finish_draft(conn, draft["approval_id"], status, message_id)
+        else:
+            mem.save_mail(conn, state["company"], draft.get("name", ""), draft.get("to", ""),
+                          draft.get("subject", ""), draft.get("body", ""), status, message_id)
+        sent.append({**draft, "status": status, "message_id": message_id})
+
     try:
+        blocked_addresses.update(mem.bounced_addresses(conn))
         for i, d in enumerate(state.get("drafts") or []):
             issues = check_draft(d)
+            if (d.get("to") or "").strip().lower() in blocked_addresses:
+                issues.append("address is on the do-not-mail list")
             if issues:
-                status = "blocked: " + "; ".join(issues)
-                mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""),
-                              d.get("subject", ""), d.get("body", ""), status, None)
-                sent.append({**d, "status": status, "message_id": None})
+                record(d, "blocked: " + "; ".join(issues))
                 continue
             if dry:
                 mid = f"dry-run-{state['company']}-{i}"
                 status = "draft (dry-run)"
             else:
-                # Duplicate-send guard at the send boundary: /approve
-                # checks for already-sent mails before the graph runs,
-                # but two approves in flight (or the same person twice
-                # in one batch) can both pass that check. Re-check here,
-                # on the same connection that records the send, so a
-                # second attempt to the same address is blocked, never
-                # mailed twice.
+                identity = (state["company"].strip().lower(), d["to"].strip().lower())
+                claim = conn.execute(
+                    "INSERT INTO mail_delivery_claims(company, email) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                    identity,
+                )
+                conn.commit()
+                if not claim.rowcount:
+                    record(d, "failed: another delivery is in progress")
+                    continue
                 already = conn.execute(
-                    "SELECT COUNT(*) FROM mails WHERE lower(company) = lower(?) "
-                    "AND lower(email) = lower(?) AND status = 'sent'",
-                    (state["company"], d["to"]),
+                    "SELECT 1 FROM mails WHERE lower(company) = ? AND lower(email) = ? AND status = 'sent'",
+                    identity,
                 ).fetchone()
-                if already and already[0]:
-                    status = "already sent (duplicate blocked)"
-                    mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""), d.get("subject", ""), d.get("body", ""), status, None)
-                    sent.append({**d, "status": status, "message_id": None})
+                if already:
+                    record(d, "already sent (duplicate blocked)")
+                    conn.execute("DELETE FROM mail_delivery_claims WHERE company = ? AND email = ?", identity)
+                    conn.commit()
                     continue
                 # Enforce the gap from the last real send, however many
                 # blocked/failed drafts came between them.
@@ -90,8 +102,10 @@ def send_drafts(state: dict, dry_run: bool | None = None) -> dict:
                 except Exception as exc:  # logged, batch continues
                     mid = None
                     status = f"failed: {exc}"
-            mem.save_mail(conn, state["company"], d.get("name", ""), d.get("to", ""), d.get("subject", ""), d.get("body", ""), status, mid)
-            sent.append({**d, "status": status, "message_id": mid})
+            record(d, status, mid)
+            if not dry:
+                conn.execute("DELETE FROM mail_delivery_claims WHERE company = ? AND email = ?", identity)
+                conn.commit()
     finally:
         conn.close()
     return {**state, "sent": sent}

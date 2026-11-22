@@ -11,6 +11,8 @@ export type Person = {
 }
 
 export type Draft = {
+  id?: number
+  status?: string
   to: string
   name: string
   subject: string
@@ -127,31 +129,6 @@ export type CoverageResponse = {
   do_not_mail: { email: string; reason: string }[]
 }
 
-/** Static copy of the backend board registry, used only when the backend
- * is unreachable so the Discover page still lists the boards. The live
- * registry at GET /boards is the source of truth when it answers. */
-export const BOARDS_FALLBACK: Board[] = [
-  { id: 'builtin', name: 'Built In', url: 'https://builtin.com/jobs', focus: 'Startup and tech jobs, India filter', best_for: 'iion, Drivetrain and other venture-backed startups', signin: 'signed-in', signin_note: 'Signed in as sivasaiboggu@gmail.com', apply_note: 'Apply on the board or the employer\'s own site; check Applied status first.' },
-  { id: 'wellfound', name: 'Wellfound', url: 'https://wellfound.com/jobs', focus: 'Startup internships, mostly remote-friendly', best_for: 'vaiu.ai, Alchemyst AI, Fluexy, Langslide and other early-stage teams', signin: 'signed-in', signin_note: 'Signed in as Boggu Sivasai via Google; profile resume is the current PDF', apply_note: 'Uses the Wellfound profile resume — no separate PDF upload field.' },
-  { id: 'shine', name: 'Shine', url: 'https://www.shine.com', focus: 'Indian job portal, large employers and consultancies', best_for: 'Discover Dollar, SmartBridge and other India-based employers', signin: 'signed-in', signin_note: 'Signed in as Sivasai Boggu', apply_note: 'Profile resume is the current PDF; Easy Apply on the board.' },
-  { id: 'jobfound', name: 'Jobfound', url: 'https://jobfound.org', focus: 'Curated fresher and intern listings, India', best_for: 'eTeam, Fast Code AI, Ascende and other fresher roles', signin: 'signed-in', signin_note: 'Signed in as SIVA SAI', apply_note: 'Listings often redirect to the employer\'s own form or inbox.' },
-  { id: 'himalayas', name: 'Himalayas', url: 'https://himalayas.app', focus: 'Remote-first companies worldwide', best_for: 'Binance, AccuKnox, Fask, Vilambo, Spektra, Cirqllabs', signin: 'signed-in', signin_note: 'Signed in as SIVA SAI; free plan', apply_note: 'Apply on the board; check Applied status first — several roles were already applied.' },
-  { id: 'cutshort', name: 'Cutshort', url: 'https://cutshort.io', focus: 'Startup hiring, remote and Bengaluru roles', best_for: 'PGAGI and other small-team AI roles', signin: 'not-signed-in', signin_note: 'Sign-in not completed — applications here are blocked until Siva signs in', apply_note: 'Needs Siva\'s Cutshort sign-in before any application.' },
-  { id: 'hiringcafe', name: 'HiringCafe', url: 'https://hiringcafe.com', focus: 'Aggregated startup and enterprise listings', best_for: 'PinSec.Ai, Vivusoft, Meraki Labs, Enterpret, Airbus', signin: 'browse-only', signin_note: 'No account needed to browse; applications go to the employer\'s own site', apply_note: 'Listings redirect out — verify the role is still live before applying.' },
-  { id: 'linkedin', name: 'LinkedIn Jobs', url: 'https://www.linkedin.com/jobs', focus: 'Largest pool; Easy Apply on many roles', best_for: 'Lanmea, Honeywell, Offshore Minds, SynaptyX and other Easy Apply roles', signin: 'signed-in', signin_note: 'Signed in as SIVASAI B (via sivasai11718@gmail.com)', apply_note: 'Easy Apply only offers the signed-in account\'s email — check which account is in use.' },
-]
-
-export async function fetchBoards(): Promise<{ boards: Board[]; live: boolean }> {
-  try {
-    const r = await fetch(apiUrl('/boards'))
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    const body = await r.json()
-    return { boards: body.boards as Board[], live: true }
-  } catch {
-    return { boards: BOARDS_FALLBACK, live: false }
-  }
-}
-
 export async function fetchCoverage(): Promise<CoverageResponse | null> {
   try {
     const r = await fetch(apiUrl('/coverage'))
@@ -169,7 +146,7 @@ export function normalizeCompanyName(name: string): string {
 
 export type CampaignsResponse = {
   companies: { name: string; summary: string }[]
-  mails: { company: string; recipient: string; email: string; subject: string; body: string; status: string; reply_class: string | null; sent_at: number | null; replied_at: number | null }[]
+  mails: { id?: number; company: string; recipient: string; email: string; subject: string; body: string; status: string; reply_class: string | null; sent_at: number | null; replied_at: number | null }[]
 }
 
 export async function fetchPeople(): Promise<Person[] | null> {
@@ -355,6 +332,8 @@ export type StreamEvent =
   | { kind: 'done'; reply: string; drafts: Draft[]; company?: ChatResponse['company']; people?: Person[] }
   | { kind: 'error'; detail: string }
 
+export class StreamUnavailable extends Error {}
+
 /** Streaming twin of sendChat: consumes POST /chat/stream (SSE) and calls
  * `onEvent` for every frame. Throws on HTTP failure so the caller can
  * fall back to the plain /chat call. */
@@ -364,7 +343,10 @@ export async function streamChat(message: string, onEvent: (e: StreamEvent) => v
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ message }),
   })
-  if (!r.ok || !r.body) throw new Error(`Agent API returned ${r.status}`)
+  if ([404, 405, 501].includes(r.status)) throw new StreamUnavailable('This API does not support streaming.')
+  if (!r.ok || !r.body || !r.headers.get('content-type')?.includes('text/event-stream')) {
+    throw new Error(`Agent stream unavailable (HTTP ${r.status}).`)
+  }
   const reader = r.body.getReader()
   const decoder = new TextDecoder()
   let buf = ''
@@ -382,6 +364,7 @@ export async function streamChat(message: string, onEvent: (e: StreamEvent) => v
     const { done, value } = await reader.read()
     if (done) break
     buf += decoder.decode(value, { stream: true })
+    buf = buf.replace(/\r\n/g, '\n')
     let idx: number
     while ((idx = buf.indexOf('\n\n')) !== -1) {
       const frame = buf.slice(0, idx)
@@ -395,17 +378,38 @@ export async function streamChat(message: string, onEvent: (e: StreamEvent) => v
   }
 }
 
+export function isPendingMail(status: string) {
+  return status === 'draft' || status === 'ready-to-send' || status.startsWith('failed: ')
+}
+
+export function sameCompany(a: string | undefined, b: string | undefined) {
+  return a?.trim().toLowerCase() === b?.trim().toLowerCase()
+}
+
+export async function saveDraft(id: number, subject: string, body: string): Promise<{ id: number }> {
+  const response = await fetch(apiUrl(`/drafts/${id}`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject, body }),
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Couldn’t save the draft.')
+  }
+  return response.json()
+}
+
 /** Approve a company's drafts. Throws on network/HTTP failure so the
  * caller can tell the user the approval did NOT reach the backend. */
-export async function approveCompany(company: string): Promise<{ sent: { to: string; status: string }[]; company: string }> {
+export async function approveCompany(company: string, draftIds?: number[]): Promise<{ sent: { to: string; status: string }[]; company: string }> {
   const r = await fetch(apiUrl('/approve'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ company, approve: true }),
+    body: JSON.stringify({ company, approve: true, draft_ids: draftIds }),
   })
   if (!r.ok) {
     const detail = await r.json().catch(() => null)
-    throw new Error(detail?.detail ?? `Approval failed (HTTP ${r.status})`)
+    throw new Error(typeof detail?.detail === 'string' ? detail.detail : `Approval failed (HTTP ${r.status})`)
   }
-  return (await r.json()) as never
+  return r.json()
 }

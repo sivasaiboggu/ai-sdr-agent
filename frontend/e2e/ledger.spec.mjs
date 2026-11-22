@@ -110,3 +110,96 @@ test('company approval refreshes live records and the tracker shows live replies
   await expect(page.getByRole('heading', { name: 'An introduction' })).toBeVisible()
   await expect(page.getByText('Follow up after the recipient returns.')).toBeVisible()
 })
+
+test('edits a saved draft and approves the current recipient versions', async ({ page }) => {
+  const company = 'Northstar Robotics'
+  let currentId = 10
+  let subject = 'Saved draft'
+  let delivered = false
+  const first = { company, recipient: 'Avery Chen', email: 'avery@example.com', body: 'The original copy.', status: 'draft' }
+  const second = { ...first, id: 11, recipient: 'Nora Patel', email: 'nora@example.com', subject: 'Second draft' }
+  await page.route('**/api/**', async (route) => {
+    const { pathname } = new URL(route.request().url())
+    if (pathname === '/api/health') return route.fulfill({ json: { status: 'ok', gmail_configured: true, gmail_send_enabled: false } })
+    if (pathname === '/api/campaigns') return route.fulfill({ json: { companies: [], mails: delivered ? [] : [{ ...first, id: currentId, subject }, second] } })
+    if (pathname === '/api/drafts/10') {
+      const changes = route.request().postDataJSON()
+      expect(changes).toEqual({ subject: 'Reviewed copy', body: 'The original copy.' })
+      currentId = 12
+      subject = changes.subject
+      return route.fulfill({ json: { id: currentId } })
+    }
+    if (pathname === '/api/approve') {
+      expect(route.request().postDataJSON()).toEqual({ company, approve: true, draft_ids: [12, 11] })
+      delivered = true
+      return route.fulfill({ json: { company, sent: [first, second].map(({ email }) => ({ to: email, status: 'draft (dry-run)' })) } })
+    }
+    return route.fulfill({ status: 503 })
+  })
+  await page.goto('/#/drafts')
+  await page.getByRole('button', { name: 'Edit draft' }).click()
+  await page.getByRole('textbox', { name: 'Subject' }).fill('Reviewed copy')
+  await page.getByRole('button', { name: 'Save draft' }).click()
+  await expect(page.getByRole('heading', { name: 'Reviewed copy' })).toBeVisible()
+  await page.getByText('2 recipients at Northstar Robotics').click()
+  await expect(page.getByText('Nora Patel · nora@example.com')).toBeVisible()
+  await page.getByRole('button', { name: 'Approve company drafts' }).click()
+  await expect(page.getByRole('heading', { name: 'No drafts waiting' })).toBeVisible()
+  await expect(page.getByRole('status').getByText(/2 recorded as dry runs/)).toBeVisible()
+})
+
+test('an interrupted chat stream keeps the request and does not start another run', async ({ page }) => {
+  let fallbacks = 0
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/chat/stream') return route.fulfill({
+      contentType: 'text/event-stream',
+      body: 'event: step\ndata: {"key":"research","state":"start"}\n\n',
+    })
+    if (path === '/api/chat') fallbacks += 1
+    return route.fulfill({ status: 503 })
+  })
+  const message = 'Research Northstar Robotics and draft mails'
+  await page.goto('/#/chat')
+  const input = page.getByRole('textbox', { name: 'Message' })
+  await input.fill(message)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.getByRole('log').getByText(/connection closed before the agent confirmed/)).toBeVisible()
+  await expect(input).toHaveValue(message)
+  expect(fallbacks).toBe(0)
+  const nav = page.getByRole('navigation', { name: 'Workspace' })
+  await nav.getByRole('link', { name: 'Overview', exact: true }).click()
+  await nav.getByRole('link', { name: 'Agent chat', exact: true }).click()
+  await expect(page.getByRole('log').getByText(message, { exact: true })).toBeVisible()
+  await expect(input).toHaveValue(message)
+})
+
+test('lead verification and sorting respect company scope and survive reload', async ({ page }) => {
+  await page.route('**/api/**', (route) => route.fulfill({ status: 503 }))
+  await page.goto('/#/leads?company=iion')
+  await page.getByRole('button', { name: 'Verified 4', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Sort leads' }).selectOption('name')
+  await expect(page.getByRole('table').getByRole('row').nth(1)).toContainText('Giuseppe Martoriello')
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Verified 4', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('combobox', { name: 'Sort leads' })).toHaveValue('name')
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5)
+})
+
+test('a research command opens Chat and runs the selected company once', async ({ page }) => {
+  const requests = []
+  await page.route('**/api/**', (route) => {
+    if (!route.request().url().endsWith('/chat/stream')) return route.fulfill({ status: 503 })
+    requests.push(route.request().postDataJSON().message)
+    return route.fulfill({
+      contentType: 'text/event-stream',
+      body: 'event: done\ndata: {"reply":"Research saved.","drafts":[]}\n\n',
+    })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Commands' }).click()
+  await page.getByRole('combobox', { name: 'Search commands' }).fill('Research iion')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('log').getByText('Research saved.')).toBeVisible()
+  expect(requests).toEqual(['Research iion and draft mails'])
+})

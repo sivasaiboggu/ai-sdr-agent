@@ -3,7 +3,8 @@ import { ArrowRight, Ban, ExternalLink, Search } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod/mini'
 import { Alert, Badge, Button, CardHeader, LoadingState, PageHeader } from '../components/ui'
-import { fetchBoards, fetchCoverage, normalizeCompanyName, SEED_CAMPAIGNS, type Board, type CoverageResponse } from '../lib/data'
+import { fetchBoards } from '../lib/boards'
+import { fetchCoverage, normalizeCompanyName, SEED_CAMPAIGNS, type Board, type CoverageResponse } from '../lib/data'
 
 const boardStatus = {
   'signed-in': { label: 'Signed in', tone: 'verified' },
@@ -30,7 +31,7 @@ export default function Discover() {
 
   const boards = sources?.boards ?? []
   const selected = boards.find((board) => board.id === selectedId) ?? boards[0]
-  const covered = new Map(SEED_CAMPAIGNS.map((c) => [normalizeCompanyName(c.name), { name: c.name, status: c.status as string, sent: c.sent, demo: true }]))
+  const covered = new Map((coverage === null ? SEED_CAMPAIGNS : []).map((c) => [normalizeCompanyName(c.name), { name: c.name, status: c.status as string, sent: c.sent, demo: true }]))
   for (const c of coverage?.companies ?? []) covered.set(normalizeCompanyName(c.name), { ...c, demo: false })
   const found = checked && covered.get(normalizeCompanyName(checked.name))
 
@@ -43,20 +44,19 @@ export default function Discover() {
     const blocked = coverage?.do_not_mail.some(({ email }) => {
       const domain = (email.split('@')[1] ?? '').replace(/\.[a-z]{2,}$/i, '')
       const normalized = normalizeCompanyName(domain)
-      return normalized && key && (normalized.includes(key) || key.includes(normalized))
+      return normalized && key && normalized === key
     })
     setChecked({ name, kind: blocked ? 'blocked' : covered.has(key) ? 'covered' : 'new' })
   }
 
   function research(name: string) {
-    try { sessionStorage.setItem('sdr-pending-chat', `Research ${name} and draft mails`) } catch { /* Storage is optional. */ }
-    navigate('/chat')
+    navigate('/chat', { state: { message: `Research ${name} and draft mails` } })
   }
 
   return (
     <>
       <PageHeader title="Discover" subtitle="Check a company against your outreach records, or browse the job boards you research from." />
-      <section className="panel ruled mb-6">
+      <section className="panel coverage-sheet mb-6">
         <div className="p-5 sm:p-6">
           <h2 className="section-title">Check company coverage</h2>
           <p className="mt-2 text-muted">Look up a company before starting another campaign.</p>
@@ -107,7 +107,7 @@ export default function Discover() {
             ))}
           </section>
           {selected && (
-            <section className="panel ruled" aria-label="Selected job board">
+            <section key={selected.id} className="panel source-sheet record-enter" aria-label="Selected job board">
               <CardHeader title={selected.name} subtitle={selected.focus} />
               <div className="space-y-4 p-5">
                 <div><p className="eyebrow">Best for</p><p>{selected.best_for}</p></div>
