@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ActivityChart, ReplyBreakdown } from '../components/charts'
 import { ActionLink, Alert, Badge, CardHeader, DemoDataNotice, LoadingState, PageHeader, PipelineSteps, type PipelineStepState } from '../components/ui'
-import { AGENT_STEPS, SEED_CAMPAIGNS, SEED_DRAFTS, SEED_PEOPLE, useLiveData, type Health } from '../lib/data'
+import { AGENT_STEPS, isPendingMail, SEED_CAMPAIGNS, SEED_DRAFTS, SEED_PEOPLE, useLiveData, type Health } from '../lib/data'
 import { buildActivity } from '../lib/activity'
 import { replyRecords, replyTypes } from '../lib/replies'
 import { timeAgo } from '../lib/utils'
@@ -15,7 +15,7 @@ export default function Dashboard({ health }: { health: Health | null }) {
   const companies = live ? data?.coverage?.companies ?? data?.campaigns?.companies ?? [] : SEED_CAMPAIGNS
   const verified = people.filter((person) => person.verified).length
   const sent = live ? mails.filter((mail) => mail.status === 'sent').length : SEED_CAMPAIGNS.reduce((sum, company) => sum + company.sent, 0)
-  const draftCount = live ? mails.filter((mail) => mail.status.startsWith('draft') || mail.status === 'ready-to-send').length : SEED_DRAFTS.length
+  const draftCount = live ? mails.filter((mail) => isPendingMail(mail.status)).length : SEED_DRAFTS.length
   const replies = replyRecords(live ? data?.campaigns ?? { companies: [], mails: [] } : null)
   const interested = replies.filter((reply) => reply.classification === 'interested').length
   const bounces = replies.filter((reply) => reply.classification === 'bounce').length
@@ -41,15 +41,15 @@ export default function Dashboard({ health }: { health: Health | null }) {
             <div className="mb-4"><Alert tone="warning"><span><strong>Gmail needs setup.</strong> Drafts stay available for review.</span></Alert></div>
           )}
           <div className="split overview-top">
-            <section className="overview-action ruled">
-              <p className="eyebrow">Next up</p>
+            <section className="overview-action">
+              <p className="eyebrow">Review desk</p>
               <h2>{draftCount ? `${draftCount} ${draftCount === 1 ? 'draft' : 'drafts'} to review` : companies.length ? 'Start another campaign' : 'Research your first company'}</h2>
               <p>{draftCount ? 'Read the drafts and check the recipients before approving.' : 'Give the agent a company name to start a campaign.'}</p>
               <Link to={draftCount ? '/drafts' : '/chat'} className="text-link mt-4">
                 {draftCount ? 'Review drafts' : 'Open agent chat'}<ArrowRight size={15} aria-hidden="true" />
               </Link>
             </section>
-            <section className="panel ruled h-full">
+            <section className="panel reply-sheet h-full">
               <CardHeader title="Latest replies" action={<Link to="/replies" className="text-link">All replies <ArrowUpRight size={14} /></Link>} />
               {!replies.length && <p className="p-5 text-sm text-muted">No classified replies yet.</p>}
               {replies.slice(0, 3).map((reply) => (
@@ -74,7 +74,7 @@ export default function Dashboard({ health }: { health: Health | null }) {
           </dl>
 
           <div className="split overview-records">
-            <section className="panel">
+            <section className="panel activity-sheet">
               <CardHeader title="Outreach activity" subtitle="Last seven days" />
               {live ? <ActivityChart data={activity} /> : (
                 <div className="activity-empty">
@@ -90,7 +90,7 @@ export default function Dashboard({ health }: { health: Health | null }) {
             </section>
           </div>
 
-          <section className="panel">
+          <section className="panel overview-pipeline">
             <CardHeader title="Outreach pipeline" subtitle="Progress across your saved campaigns."
               action={<Link to="/chat" className="text-link">Agent chat <ArrowUpRight size={14} /></Link>} />
             <PipelineSteps steps={AGENT_STEPS} stateFor={(key) => steps[key] ?? 'queued'} />

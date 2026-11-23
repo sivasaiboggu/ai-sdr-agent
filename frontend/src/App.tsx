@@ -1,12 +1,12 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { NAV, Sidebar, Topbar, useBackendHealth } from './components/layout'
 import { ActionLink, Button, LoadingState, PageHeader } from './components/ui'
-import CommandPalette from './components/CommandPalette'
 import Dashboard from './pages/Dashboard'
 import NotFound from './pages/NotFound'
 
+const CommandPalette = lazy(() => import('./components/CommandPalette'))
 const Discover = lazy(() => import('./pages/Discover'))
 const Campaigns = lazy(() => import('./pages/Campaigns'))
 const Leads = lazy(() => import('./pages/Leads'))
@@ -39,21 +39,25 @@ export default function App() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteUsed, setPaletteUsed] = useState(false)
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState<{ msg: string; tone: ToastTone } | null>(null)
   const toastTimer = useRef<number>()
   const main = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
+  const animateView = useNavigationType() !== 'POP'
   const previousPath = useRef(pathname)
+  const [chatVisited, setChatVisited] = useState(pathname === '/chat')
+  useEffect(() => { if (pathname === '/chat') setChatVisited(true) }, [pathname])
   const health = useBackendHealth()
   const toggleTheme = useCallback(() => setDark((value) => !value), [])
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
-  const openPalette = useCallback(() => setPaletteOpen(true), [])
+  const openPalette = useCallback(() => { setPaletteUsed(true); setPaletteOpen(true) }, [])
   const closePalette = useCallback(() => setPaletteOpen(false), [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#191712' : '#f5f2eb')
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#090f1d' : '#f5f7fb')
     try { localStorage.setItem('sdr-theme', dark ? 'dark' : 'light') } catch { /* Storage is optional. */ }
   }, [dark])
 
@@ -78,6 +82,7 @@ export default function App() {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
       if (document.querySelector('dialog[open]:not(#command-palette)')) return
       event.preventDefault()
+      setPaletteUsed(true)
       setPaletteOpen((value) => !value)
     }
     window.addEventListener('keydown', onKey)
@@ -90,25 +95,39 @@ export default function App() {
     <div className="app-shell">
       <button className="button button--primary skip-link" onClick={() => main.current?.focus()}>Skip to main content</button>
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <CommandPalette open={paletteOpen} onClose={closePalette} onToggleTheme={toggleTheme} dark={dark} />
+      {paletteUsed && (
+        <Suspense fallback={null}>
+          <CommandPalette open={paletteOpen} onClose={closePalette} onToggleTheme={toggleTheme} dark={dark} />
+        </Suspense>
+      )}
       <div className="app-main">
         <Topbar dark={dark} onToggleTheme={toggleTheme} menuOpen={sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)}
           onOpenPalette={openPalette} query={query} onQuery={setQuery} health={health} />
         <main ref={main} id="main-content" tabIndex={-1} className="workspace">
-          <RouteBoundary key={pathname}>
-            <Suspense fallback={<LoadingState label="Loading page…" />}>
-              <Routes>
-                <Route path="/" element={<Dashboard health={health ?? null} />} />
-                <Route path="/discover" element={<Discover />} />
-                <Route path="/campaigns" element={<Campaigns query={query} />} />
-                <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
-                <Route path="/drafts" element={<Drafts onToast={showToast} />} />
-                <Route path="/replies" element={<Replies />} />
-                <Route path="/chat" element={<Chat onToast={showToast} />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </RouteBoundary>
+          {pathname !== '/chat' && <div key={pathname} className={animateView ? 'view-enter' : undefined}>
+            <RouteBoundary>
+              <Suspense fallback={<LoadingState label="Loading page…" />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard health={health ?? null} />} />
+                  <Route path="/discover" element={<Discover />} />
+                  <Route path="/campaigns" element={<Campaigns query={query} />} />
+                  <Route path="/leads" element={<Leads query={query} onToast={showToast} />} />
+                  <Route path="/drafts" element={<Drafts onToast={showToast} health={health} />} />
+                  <Route path="/replies" element={<Replies />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </RouteBoundary>
+          </div>}
+          {(chatVisited || pathname === '/chat') && (
+            <div hidden={pathname !== '/chat'} className={pathname === '/chat' && animateView ? 'view-enter' : undefined}>
+              <RouteBoundary>
+                <Suspense fallback={<LoadingState label="Loading conversation…" />}>
+                  <Chat onToast={showToast} />
+                </Suspense>
+              </RouteBoundary>
+            </div>
+          )}
         </main>
       </div>
       {toast && (

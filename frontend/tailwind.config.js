@@ -11,6 +11,8 @@ export default {
     extend: {
       colors: Object.fromEntries(colorNames.map((name) => [name, `var(--${name})`])),
       fontFamily: { sans: 'var(--font-sans)', mono: 'var(--font-mono)' },
+      fontSize: { display: 'var(--type-display)' },
+      transitionDuration: { press: 'var(--motion-press)', reveal: 'var(--motion-reveal)' },
       spacing: Object.fromEntries([1, 2, 3, 4, 5, 6, 8, 10, 12, 16].map((step) => [step, `var(--space-${step})`])),
       borderRadius: { control: 'var(--radius-control)', overlay: 'var(--radius-overlay)' },
       boxShadow: {

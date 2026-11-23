@@ -31,19 +31,17 @@ export default function CommandPalette({ open, onClose, onToggleTheme, dark }: {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  function go(to: string) {
+  function go(to: string, message?: string) {
     dialogRef.current?.close()
     onClose()
-    navigate(to)
+    navigate(to, message ? { state: { message } } : undefined)
   }
 
   const actions: PaletteAction[] = [
     ...NAV.map(({ to, label, icon }) => ({ id: to, label, group: 'Go to', icon, run: () => go(to) })),
     ...['iion', 'Alchemyst AI', 'Discover Dollar', 'Drivetrain'].map((company) => ({
-      id: company, label: `Research ${company} and draft mails`, group: 'Research', icon: Compass, run: () => {
-        try { sessionStorage.setItem('sdr-pending-chat', `Research ${company} and draft mails`) } catch { /* Storage is optional. */ }
-        go('/chat')
-      },
+      id: company, label: `Research ${company} and draft mails`, group: 'Research', icon: Compass,
+      run: () => go('/chat', `Research ${company} and draft mails`),
     })),
     { id: 'theme', label: dark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Appearance',
       icon: dark ? Sun : Moon, run: () => { onToggleTheme(); onClose() } },

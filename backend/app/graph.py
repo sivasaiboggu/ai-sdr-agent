@@ -1,84 +1,71 @@
-"""LangGraph state machine: research -> people -> writer -> [human approval] -> sender -> tracker.
-Human-in-the-loop: the graph stops after `writer` and waits for approval
-(approve / always-allow / edit) before `sender` runs. If LangGraph is not
-installed (or the graph fails), `run_campaign` falls back to the same steps
-in order, so the CLI / chat / WhatsApp flows keep working.
-"""
-from backend.app.agents import research, people, writer, sender, tracker
+"""Research, leads and drafting share the same steps across chat and CLI."""
+from contextvars import ContextVar
+from typing import Callable, TypedDict
+
+from backend.app import memory
+from backend.app.agents import people, research, sender, tracker, writer
 from backend.app.tools.search import normalize_company
 
-def _sequential(state: dict, approve: bool, dry_run: bool) -> dict:
-    """The same pipeline without LangGraph, in the same order."""
-    state = research.run(state)
-    state = people.run(state)
-    state = writer.run(state)
-    if approve and state.get("drafts"):
-        state = sender.send_drafts(state, dry_run=dry_run)
-    state = tracker.run(state)
-    return state
+stage_listener: ContextVar[Callable[[str, str], None] | None] = ContextVar("stage_listener", default=None)
+
+
+class CampaignState(TypedDict, total=False):
+    company: str
+    profile: dict
+    people: list
+    mailable: list
+    drafts: list
+    sent: list
+    reply_classes: list
+
 
 def run_campaign(company: str, approve: bool = True, dry_run: bool = True) -> dict:
-    company = (company or "").strip()
+    company = normalize_company((company or "").strip())
     if not company:
         raise ValueError("company is required — e.g. run_campaign('iion')")
-    # Canonical name first: chat commands arrive as "iion and draft mails"
-    # and every agent saves state["company"] verbatim — without this, the
-    # people agent stored rows under "iion and draft mails" that no
-    # campaign, lead filter or dedupe query ever matched again (the four
-    # dirty rows cleaned out of sdr.db in round 8 came from exactly this).
-    company = normalize_company(company)
-    if not company:
-        raise ValueError("company is required — e.g. run_campaign('iion')")
-    state: dict = {"company": company, "replies": []}
+
+    notify = stage_listener.get()
+
+    def stage(key, run):
+        def execute(state):
+            if notify:
+                notify(key, "start")
+            result = run(state)
+            if notify:
+                notify(key, "done")
+            return result
+        return execute
+
+    steps = [(key, stage(key, agent.run)) for key, agent in (
+        ("research", research), ("people", people), ("writer", writer),
+    )]
+    state = {"company": company}
     try:
-        from langgraph.graph import StateGraph, END
-        from typing import TypedDict
-
-        class S(TypedDict, total=False):
-            company: str
-            profile: dict
-            people: list
-            mailable: list
-            drafts: list
-            sent: list
-            reply_classes: list
-
-        g = StateGraph(S)
-        g.add_node("research", research.run)
-        g.add_node("people", people.run)
-        g.add_node("writer", writer.run)
-        g.add_edge("research", "people")
-        g.add_edge("people", "writer")
-        g.set_entry_point("research")
-        g.add_edge("writer", END)
-        app = g.compile()
-        state = app.invoke({"company": company})
+        from langgraph.graph import END, StateGraph
     except ImportError:
-        state = _sequential(state, approve, dry_run)
-        return _defaults(state)
-    except Exception:
-        # A graph failure must not kill the campaign — run the same steps
-        # sequentially instead of returning a half-filled state.
-        state = _sequential({"company": company, "replies": []}, approve, dry_run)
-        return _defaults(state)
-    # Human approval gate lives outside the graph in Phase 1 (API/CLI):
-    # drafts are returned for approval; sender runs only if approve=True.
-    # The tracker is NOT a graph node: it used to run inside the graph
-    # (before approval, over replies that cannot exist yet) and then
-    # again after the sender — classifying the same replies twice and
-    # recording duplicate learnings. It runs once, after the sender,
-    # in both the graph and the sequential path.
-    if approve and state.get("drafts"):
-        state = sender.send_drafts(state, dry_run=dry_run)
-    state = tracker.run(state)
-    return _defaults(state)
+        for _, run in steps:
+            state = run(state)
+    else:
+        graph = StateGraph(CampaignState)
+        for key, run in steps:
+            graph.add_node(key, run)
+        graph.set_entry_point("research")
+        graph.add_edge("research", "people")
+        graph.add_edge("people", "writer")
+        graph.add_edge("writer", END)
+        state = graph.compile().invoke(state)
 
-def _defaults(state: dict) -> dict:
-    """Every caller can rely on these keys existing, even on a partial run."""
-    state.setdefault("profile", {"name": state.get("company", ""), "summary": "", "sources": [], "role": ""})
-    state.setdefault("people", [])
-    state.setdefault("mailable", [])
-    state.setdefault("drafts", [])
-    state.setdefault("sent", [])
-    state.setdefault("reply_classes", [])
+    drafts = state.get("drafts") or []
+    if drafts and approve:
+        state = sender.send_drafts(state, dry_run=dry_run)
+    elif drafts:
+        conn = memory.connect()
+        try:
+            state["drafts"] = memory.save_drafts(conn, state["company"], drafts)
+        finally:
+            conn.close()
+    state = tracker.run(state)
+    state.setdefault("profile", {"name": company, "summary": "", "sources": [], "role": ""})
+    for key in ("people", "mailable", "drafts", "sent", "reply_classes"):
+        state.setdefault(key, [])
     return state

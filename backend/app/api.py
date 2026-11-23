@@ -25,12 +25,14 @@ import json
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PositiveInt
 
 from backend.app.config import settings
 from backend.app.boards import DO_NOT_MAIL, get_boards
-from backend.app.graph import run_campaign
+from backend.app.graph import run_campaign, stage_listener
 from backend.app import memory as mem
+from backend.app.agents import sender
+from backend.app.quality import check_draft
 from backend.app.whatsapp import webhook as wa
 
 APP_VERSION = "0.9.7"
@@ -67,6 +69,12 @@ class ReplyRequest(BaseModel):
 class ApproveRequest(BaseModel):
     company: str = Field(min_length=1, max_length=200)
     approve: bool = True
+    draft_ids: list[PositiveInt] | None = Field(default=None, min_length=1)
+
+
+class DraftEditRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=10000)
 
 
 @router.post("/replies")
@@ -173,21 +181,43 @@ async def chat_stream(req: ChatRequest):
         if not company:
             yield _sse("done", {"reply": "Tell me a company to research, e.g. 'Research iion and draft mails'.", "drafts": []})
             return
+        loop = asyncio.get_running_loop()
+        events: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
+
+        def run():
+            token = stage_listener.set(lambda key, state: loop.call_soon_threadsafe(events.put_nowait, (key, state)))
+            try:
+                return run_campaign(company, False)
+            finally:
+                stage_listener.reset(token)
+                loop.call_soon_threadsafe(events.put_nowait, None)
+
         yield _sse("step", {"key": "research", "state": "start"})
+        task = asyncio.create_task(asyncio.to_thread(run))
+        reported = set()
         try:
-            # Draft only — do NOT send until /approve.
-            result = await asyncio.to_thread(run_campaign, company, False)
-        except ValueError as e:
-            yield _sse("error", {"detail": str(e)})
+            while True:
+                try:
+                    event = await asyncio.wait_for(events.get(), 15)
+                except TimeoutError:
+                    yield ": waiting for the agent\n\n"
+                    continue
+                if event is None:
+                    break
+                key, state = event
+                if event != ("research", "start"):
+                    reported.add(event)
+                    yield _sse("step", {"key": key, "state": state})
+            result = await task
+        except ValueError as exc:
+            yield _sse("error", {"detail": str(exc)})
             return
-        except Exception as e:
-            yield _sse("error", {"detail": f"Agent run failed: {e}"})
+        except Exception as exc:
+            yield _sse("error", {"detail": f"Agent run failed: {exc}"})
             return
-        # The run finished, so research is done too: the old code only
-        # ever emitted research/start, and the chat step indicator stalled
-        # on "Research company" until the reply streamed.
         for key in ("research", "people", "writer", "approval"):
-            yield _sse("step", {"key": key, "state": "done"})
+            if (key, "done") not in reported:
+                yield _sse("step", {"key": key, "state": "done"})
         reply = (
             f"Researched {result['profile']['name']}: {result['profile']['summary']} "
             f"Found {len(result['mailable'])} mailable people and drafted {len(result['drafts'])} "
@@ -204,39 +234,91 @@ async def chat_stream(req: ChatRequest):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@router.post("/drafts/{draft_id}")
+def edit_draft(draft_id: int, req: DraftEditRequest):
+    conn = mem.connect()
+    try:
+        old = conn.execute(
+            "SELECT company, recipient, email, subject, body FROM mails WHERE id = ?", (draft_id,),
+        ).fetchone()
+        if not old:
+            raise HTTPException(status_code=404, detail="Draft not found.")
+        company, recipient, email, subject, body = old
+        pending = next((row for row in mem.pending_drafts(conn, company) if row[0] == draft_id), None)
+        if pending is None:
+            raise HTTPException(status_code=409, detail="This draft changed. Reopen it before editing.")
+        changes = {"subject": req.subject.strip(), "body": req.body.strip()}
+        issues = check_draft({**changes, "to": email}, person={"name": recipient})
+        if issues:
+            raise HTTPException(status_code=400, detail="; ".join(issues))
+        if (subject, body) == (changes["subject"], changes["body"]):
+            return {"id": draft_id}
+        updated = conn.execute(
+            f"UPDATE mails SET status = 'superseded' WHERE id = ? AND {mem.PENDING_MAIL}", (draft_id,),
+        )
+        if not updated.rowcount:
+            raise HTTPException(status_code=409, detail="This draft changed. Reopen it before editing.")
+        status = pending[5] if pending[5].startswith("failed: ") else "draft"
+        new_id = mem.save_mail(conn, company, recipient, email, changes["subject"], changes["body"], status)
+        conn.commit()
+        return {"id": new_id}
+    finally:
+        conn.close()
+
+
 @router.post("/approve")
 def approve(req: ApproveRequest):
     if not req.approve:
-        return {"sent": [], "company": req.company, "detail": "Not approved — nothing sent."}
-    # Dedupe guard: never re-mail a company that already has sent mails.
-    # The check runs before the graph, so no draft is re-sent by accident.
+        return {"sent": [], "company": req.company, "detail": "Not approved."}
+
+    company = req.company.strip()
+    conn = mem.connect()
     try:
-        conn = mem.connect()
-        try:
-            already = conn.execute(
-                "SELECT COUNT(*), MAX(sent_at) FROM mails WHERE lower(company) = lower(?) AND status = 'sent'",
-                (req.company.strip(),),
-            ).fetchone()
-        finally:
-            conn.close()
-    except Exception:
-        already = (0, None)
-    if already and already[0]:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Already sent {already[0]} mail(s) to {req.company} — not re-mailing. "
-                   "Check Replies / Drafts before contacting them again.",
-        )
+        sent_count = conn.execute(
+            "SELECT COUNT(*) FROM mails WHERE lower(company) = lower(?) AND status = 'sent'", (company,),
+        ).fetchone()[0]
+        active = conn.execute(
+            "SELECT 1 FROM mails WHERE lower(company) = lower(?) AND status = 'sending' LIMIT 1", (company,),
+        ).fetchone()
+        if active:
+            raise HTTPException(status_code=409, detail="An approval is still in progress for this company.")
+        rows = mem.pending_drafts(conn, company)
+        if sent_count and (req.draft_ids is None or any(not row[5].startswith("failed: ") for row in rows)):
+            raise HTTPException(status_code=409, detail=f"Already sent {sent_count} mail(s) to {company}. Check the reply log before contacting them again.")
+        ids = [row[0] for row in rows]
+        if req.draft_ids is not None and sorted(ids) != sorted(req.draft_ids):
+            raise HTTPException(status_code=409, detail="The review queue changed. Check the current drafts before approving.")
+        if ids:
+            placeholders = ", ".join("?" for _ in ids)
+            claimed = conn.execute(
+                f"UPDATE mails SET status = 'sending' WHERE id IN ({placeholders}) AND {mem.PENDING_MAIL}", ids,
+            )
+            if claimed.rowcount != len(ids):
+                conn.rollback()
+                raise HTTPException(status_code=409, detail="The review queue changed. Check the current drafts before approving.")
+            conn.commit()
+    finally:
+        conn.close()
+
+    if ids:
+        drafts = [
+            {"approval_id": draft_id, "name": recipient, "to": email, "subject": subject, "body": body}
+            for draft_id, recipient, email, subject, body, _ in rows
+        ]
+        return {"sent": sender.send_drafts({"company": company, "drafts": drafts}, dry_run=False)["sent"], "company": company}
+
+    # Older clients can still run the dry-run workflow on an empty queue.
+    if settings.gmail_send_enabled:
+        raise HTTPException(status_code=404, detail="No saved drafts. Research and review the company first.")
     try:
-        # Re-run the graph with approval; sender respects the 5-min gap.
-        result = run_campaign(req.company, approve=True, dry_run=False)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Agent run failed: {e}")
+        result = run_campaign(company, approve=True, dry_run=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Agent run failed: {exc}")
     if not result.get("drafts"):
-        raise HTTPException(status_code=404, detail=f"No drafts found for {req.company!r} — research it first, or no verified emails exist for it.")
-    return {"sent": result.get("sent", []), "company": req.company}
+        raise HTTPException(status_code=404, detail=f"No drafts found for {company!r}.")
+    return {"sent": result.get("sent", []), "company": company}
 
 
 @router.get("/boards")
@@ -256,9 +338,10 @@ def coverage():
         try:
             companies = conn.execute("SELECT name, summary FROM companies").fetchall()
             mails = conn.execute(
-                "SELECT company, COUNT(*), SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END), MAX(sent_at) "
-                "FROM mails GROUP BY company"
+                "SELECT MIN(company), COUNT(*), SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END), MAX(sent_at) "
+                "FROM mails WHERE status <> 'superseded' GROUP BY lower(company)"
             ).fetchall()
+            bounced = mem.bounced_addresses(conn)
         finally:
             conn.close()
     except Exception as e:
@@ -272,12 +355,17 @@ def coverage():
         out.append(entry)
     # Companies with mails but no companies-row (e.g. seeded memory) still count.
     known = {c["name"].lower() for c in out}
-    for company, counts in mail_map.items():
-        if company not in known:
+    for company, *_ in mails:
+        if company.lower() not in known:
+            counts = mail_map[company.lower()]
             out.append({"name": company, "summary": "", "mails": counts["mails"],
                         "sent": counts["sent"], "last_sent_at": counts["last_sent_at"],
                         "status": "sent" if counts["sent"] else "mailed"})
-    return {"companies": sorted(out, key=lambda c: c["name"].lower()), "do_not_mail": DO_NOT_MAIL}
+    blocked = {entry["email"].lower(): entry["reason"] for entry in DO_NOT_MAIL}
+    for email in sorted(bounced):
+        blocked.setdefault(email, "The reply tracker recorded a delivery bounce.")
+    return {"companies": sorted(out, key=lambda c: c["name"].lower()),
+            "do_not_mail": [{"email": email, "reason": reason} for email, reason in blocked.items()]}
 
 
 @router.get("/campaigns")
@@ -286,14 +374,20 @@ def campaigns():
         conn = mem.connect()
         try:
             companies = conn.execute("SELECT name, summary FROM companies").fetchall()
-            mails = conn.execute("SELECT company, recipient, email, subject, body, status, reply_class, sent_at, replied_at FROM mails ORDER BY id DESC LIMIT 50").fetchall()
+            mails = conn.execute(
+                "SELECT company, recipient, email, subject, body, status, reply_class, sent_at, replied_at, id "
+                "FROM mails AS candidate WHERE status NOT IN ('superseded', 'sending') AND "
+                f"(NOT {mem.PENDING_MAIL} OR id = (SELECT MAX(id) FROM mails "
+                "WHERE lower(company) = lower(candidate.company) AND lower(email) = lower(candidate.email) "
+                "AND status NOT IN ('superseded', 'draft (dry-run)'))) ORDER BY id DESC"
+            ).fetchall()
         finally:
             conn.close()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not read campaign memory: {e}")
     return {"companies": [{"name": c[0], "summary": c[1]} for c in companies],
             "mails": [{"company": m[0], "recipient": m[1], "email": m[2], "subject": m[3], "body": m[4], "status": m[5],
-                       "reply_class": m[6], "sent_at": m[7], "replied_at": m[8]} for m in mails]}
+                       "reply_class": m[6], "sent_at": m[7], "replied_at": m[8], "id": m[9]} for m in mails]}
 
 
 @router.get("/people")

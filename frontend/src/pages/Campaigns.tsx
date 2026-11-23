@@ -1,7 +1,7 @@
 import { ArrowUpRight, Building2, Plus } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ActionLink, Badge, DemoDataNotice, EmptyState, LoadingState, PageHeader } from '../components/ui'
-import { SEED_CAMPAIGNS, SEED_DRAFTS, useLiveData } from '../lib/data'
+import { isPendingMail, sameCompany, SEED_CAMPAIGNS, SEED_DRAFTS, useLiveData } from '../lib/data'
 import { timeAgo } from '../lib/utils'
 
 export default function Campaigns({ query }: { query: string }) {
@@ -10,26 +10,29 @@ export default function Campaigns({ query }: { query: string }) {
   const company = params.get('company')
   const live = Boolean(data?.live)
   const search = query.toLowerCase().trim()
+  const coverageByName = new Map((data?.coverage?.companies ?? []).map((company) => [company.name.toLowerCase(), company]))
   const campaigns = live
-    ? (data?.coverage?.companies ?? []).map((c) => {
+    ? (data?.coverage?.companies ?? data?.campaigns?.companies ?? []).map((c) => {
         const key = c.name.toLowerCase()
         const mails = (data?.campaigns?.mails ?? []).filter((m) => m.company.toLowerCase() === key)
+        const coverage = coverageByName.get(key)
         const sent = mails.filter((m) => m.status === 'sent').length
         const replies = mails.filter((m) => m.reply_class).length
         return {
-          name: c.name, summary: c.summary, role: undefined, status: c.status,
+          name: c.name, summary: c.summary ?? '', role: undefined, status: coverage?.status ?? (sent ? 'sent' : 'researched'),
           leads: (data?.people ?? []).filter((p) => p.company.toLowerCase() === key).length,
-          drafts: mails.filter((m) => m.status.startsWith('draft') || m.status === 'ready-to-send').length,
+          drafts: mails.filter((m) => isPendingMail(m.status)).length,
           sent, replies,
           replyRate: sent > 0 ? Math.round(replies / sent * 100) : null,
-          updatedAt: c.last_sent_at ? new Date(c.last_sent_at * 1000).toISOString() : null,
+          updatedAt: coverage?.last_sent_at ? new Date(coverage.last_sent_at * 1000).toISOString() : null,
         }
       })
     : SEED_CAMPAIGNS.map((c) => ({
         ...c, drafts: SEED_DRAFTS.filter((d) => d.company === c.name).length,
         replyRate: c.sent ? c.replyRate : null,
       }))
-  const filtered = campaigns.filter((c) => (!company || c.name === company) &&
+  const filtered = campaigns.filter((c) => (!company || sameCompany(c.name, company)) &&
+    (params.get('queue') !== 'review' || c.drafts > 0) &&
     (c.name.toLowerCase().includes(search) || c.summary.toLowerCase().includes(search)))
 
   return (
@@ -40,16 +43,20 @@ export default function Campaigns({ query }: { query: string }) {
         <>
           {!live && <DemoDataNotice what="campaigns" />}
           {company && <div className="mb-4 flex flex-wrap items-center gap-3"><span className="text-sm">Company · <strong>{company}</strong></span><Link to="/campaigns" className="text-link">Show all campaigns</Link></div>}
+          <nav className="record-tabs" aria-label="Campaign status">
+            <Link to={company ? `?company=${encodeURIComponent(company)}` : '/campaigns'} aria-current={params.get('queue') !== 'review' ? 'page' : undefined}>All records</Link>
+            <Link to={`?queue=review${company ? `&company=${encodeURIComponent(company)}` : ''}`} aria-current={params.get('queue') === 'review' ? 'page' : undefined}>Needs review</Link>
+          </nav>
           {filtered.length === 0 ? (
             <EmptyState icon={Building2} title={search || company ? 'No matching campaigns' : 'No campaigns yet'}
               body={search || company ? 'Clear your search or choose another company.' : 'Research a company in Agent chat to start a campaign.'}
               action={!search && !company && <ActionLink to="/chat" variant="brand">Research a company</ActionLink>} />
           ) : (
-            <div className="panel ruled">
+            <div className="campaign-index record-enter" key={params.get('queue') ?? 'all'}>
               {filtered.map((c) => {
                 const target = `?company=${encodeURIComponent(c.name)}`
                 return (
-                  <article key={c.name} className="campaign-line ledger-row">
+                  <article key={c.name} className="campaign-line panel">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h2>{c.name}</h2><Badge dot tone={c.status} className="capitalize">{c.status}</Badge>
@@ -59,6 +66,7 @@ export default function Campaigns({ query }: { query: string }) {
                       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
                         <Link className="text-link" to={`/leads${target}`}>View leads <ArrowUpRight size={14} /></Link>
                         <Link className="text-link" to={`/drafts${target}`}>View drafts <ArrowUpRight size={14} /></Link>
+                        {c.replies > 0 && <Link className="text-link" to={`/replies${target}`}>View replies <ArrowUpRight size={14} /></Link>}
                       </div>
                     </div>
                     <div>

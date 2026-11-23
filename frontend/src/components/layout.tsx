@@ -46,7 +46,7 @@ function Navigation({ onClose }: { onClose?: () => void }) {
     <>
       <div className="sidebar-masthead">
         <Link className="identity" to="/" onClick={onClose}>
-          <LedgerMark /><span>SDR Agent<small>Outreach ledger</small></span>
+          <LedgerMark /><span>Outreach ledger<small>SDR Agent</small></span>
         </Link>
         {onClose && <button className="sidebar-close" type="button" onClick={onClose} aria-label="Close menu"><X size={20} /></button>}
       </div>
